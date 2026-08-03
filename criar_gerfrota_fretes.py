@@ -65,6 +65,7 @@ android {
 }
 
 dependencies {
+    // AndroidX e Compose
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
@@ -75,20 +76,28 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.7")
+    
+    // Room Database
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
-    // Google API Client para Android (Versões Corrigidas e Estáveis)
-    implementation("com.google.api-client:google-api-client-android:2.2.0") {
-        exclude(group = "org.apache.httpcomponents")
-    }
-    implementation("com.google.apis:google-api-services-drive:v3-rev20230816-2.0.0") {
-        exclude(group = "org.apache.httpcomponents")
-    }
-    implementation("com.google.auth:google-auth-library-oauth2-http:1.19.0")
-    implementation("com.google.http-client:google-http-client-gson:1.43.3")
+    
+    // ViewModel Compose
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    
+    // ✅ GOOGLE API - VERSÕES COMPROVADAMENTE FUNCIONAIS
+    implementation("com.google.api-client:google-api-client-android:1.32.1") {
+        exclude(group = "org.apache.httpcomponents")
+        exclude(group = "com.google.guava", module = "guava-jdk5")
+    }
+    implementation("com.google.apis:google-api-services-drive:v3-rev136-1.25.0") {
+        exclude(group = "org.apache.httpcomponents")
+    }
+    implementation("com.google.auth:google-auth-library-oauth2-http:0.22.0")
+    implementation("com.google.http-client:google-http-client:1.39.2")
+    implementation("com.google.http-client:google-http-client-gson:1.39.2")
+    implementation("com.google.code.gson:gson:2.8.9")
 }
 '''
 
