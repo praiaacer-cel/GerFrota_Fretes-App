@@ -11,33 +11,35 @@ jobs:
     timeout-minutes: 45
 
     steps:
-    - name: Checkout do código
+    - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Configurar Python
+    - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
-    - name: Executar script Python
+    - name: Run Python script
       run: |
+        echo "Gerando projeto..."
         echo "s" | python3 criar_gerfrota_fretes.py
         echo ""
         echo "=== Arquivos gerados ==="
         find GerFrotaFretesApp -type f | head -30
 
-    - name: Configurar JDK 17
+    - name: Setup JDK 17
       uses: actions/setup-java@v4
       with:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Configurar Android SDK
+    - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Criar Gradle Wrapper
+    - name: Create Gradle Wrapper
       working-directory: GerFrotaFretesApp
       run: |
+        echo "Criando Gradle Wrapper..."
         mkdir -p gradle/wrapper
 
         cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
@@ -63,16 +65,18 @@ jobs:
         ls -la gradle/wrapper/
         ls -la gradlew
 
-    - name: Compilar APK
+    - name: Build APK
       working-directory: GerFrotaFretesApp
       run: |
+        echo "Compilando APK..."
         ./gradlew assembleDebug --no-daemon --stacktrace
 
-    - name: Verificar APK
+    - name: Verify APK
       run: |
+        echo "Verificando APK..."
         ls -lh GerFrotaFretesApp/app/build/outputs/apk/debug/
 
-    - name: Enviar APK como Artifact
+    - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: GerFrota-Fretes-APK
