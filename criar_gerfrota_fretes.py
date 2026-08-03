@@ -78,13 +78,15 @@ dependencies {
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
+    // Google API Client para Android (Versões Corrigidas e Estáveis)
     implementation("com.google.api-client:google-api-client-android:2.2.0") {
         exclude(group = "org.apache.httpcomponents")
     }
     implementation("com.google.apis:google-api-services-drive:v3-rev20230816-2.0.0") {
         exclude(group = "org.apache.httpcomponents")
     }
-    implementation("com.google.auth:google-auth-library-oauth2-http:1.22.0")
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.19.0")
+    implementation("com.google.http-client:google-http-client-gson:1.43.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
 }
