@@ -65,16 +65,20 @@ android {
 }
 
 dependencies {
-    // AndroidX e Compose
+    // AndroidX Core
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
+    
+    // Compose
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
+    
+    // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.7")
     
     // Room Database
@@ -82,22 +86,18 @@ dependencies {
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
     
-    // ViewModel Compose
+    // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     
-    // ✅ GOOGLE API - VERSÕES COMPROVADAMENTE FUNCIONAIS
-    implementation("com.google.api-client:google-api-client-android:1.32.1") {
-        exclude(group = "org.apache.httpcomponents")
-        exclude(group = "com.google.guava", module = "guava-jdk5")
-    }
-    implementation("com.google.apis:google-api-services-drive:v3-rev136-1.25.0") {
-        exclude(group = "org.apache.httpcomponents")
-    }
-    implementation("com.google.auth:google-auth-library-oauth2-http:0.22.0")
-    implementation("com.google.http-client:google-http-client:1.39.2")
-    implementation("com.google.http-client:google-http-client-gson:1.39.2")
-    implementation("com.google.code.gson:gson:2.8.9")
+    // Google Drive API - VERSÕES TESTADAS E FUNCIONAIS
+    implementation("com.google.api-client:google-api-client:2.2.0")
+    implementation("com.google.oauth-client:google-oauth-client:1.34.1")
+    implementation("com.google.http-client:google-http-client-gson:1.43.3")
+    implementation("com.google.apis:google-api-services-drive:v3-rev20230816-2.0.0")
+    
+    // Google Auth para Android
+    implementation("com.google.android.gms:play-services-auth:21.0.0")
 }
 '''
 
