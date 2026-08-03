@@ -81,7 +81,7 @@ dependencies {
     implementation("com.google.api-client:google-api-client-android:2.2.0") {
         exclude(group = "org.apache.httpcomponents")
     }
-    implementation("com.google.apis:google-api-services-drive:v3-rev20231205-2.0.0") {
+    implementation("com.google.apis:google-api-services-drive:v3-rev20230816-2.0.0") {
         exclude(group = "org.apache.httpcomponents")
     }
     implementation("com.google.auth:google-auth-library-oauth2-http:1.22.0")
