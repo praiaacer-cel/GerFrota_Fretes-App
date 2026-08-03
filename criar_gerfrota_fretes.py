@@ -16,7 +16,9 @@ ARQUIVOS["settings.gradle.kts"] = r'''pluginManagement {
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories { google(); mavenCentral() }
+    repositories { google(); mavenCentral() 
+    maven {url = uri("https://maven.google.com")}
+  }
 }
 rootProject.name = "GerFrotaFretes"
 include(":app")
@@ -90,14 +92,13 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     
-    // Google Drive API - VERSÕES TESTADAS E FUNCIONAIS
-    implementation("com.google.api-client:google-api-client:2.2.0")
-    implementation("com.google.oauth-client:google-oauth-client:1.34.1")
-    implementation("com.google.http-client:google-http-client-gson:1.43.3")
-    implementation("com.google.apis:google-api-services-drive:v3-rev20230816-2.0.0")
-    
-    // Google Auth para Android
-    implementation("com.google.android.gms:play-services-auth:21.0.0")
+    // ✅ GOOGLE API - VERSÕES COMPROVADAMENTE EXISTENTES
+    implementation("com.google.api-client:google-api-client:1.32.1")
+    implementation("com.google.oauth-client:google-oauth-client:1.32.1")
+    implementation("com.google.http-client:google-http-client:1.40.1")
+    implementation("com.google.http-client:google-http-client-gson:1.40.1")
+    implementation("com.google.apis:google-api-services-drive:v3-rev136-1.25.0")
+    implementation("com.google.code.gson:gson:2.9.0")
 }
 '''
 
