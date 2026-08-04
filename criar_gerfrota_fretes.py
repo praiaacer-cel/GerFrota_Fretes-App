@@ -167,14 +167,26 @@ data class FreteEntity(
     val origem: String, val destino: String, val syncStatus: Int = 0
 )
 object FormasPagamento {
-    val opcoes = listOf("Dinheiro", "PIX", "Transferência Bancária",
-        "Cartão Débito", "Cartão Crédito", "Cheque",
-        "Boleto", "Vale-Frete", "Depósito", "Outros")
+    val opcoes = listOf(
+        "PIX PF",
+        "PIX VITALI",
+        "PIX COOP",
+        "PIX MOTORISTA",
+        "DEP. CTA. PF",
+        "DEP. CTA. VITALI",
+        "DEP. CTA. COOP",
+        "DEP. CTA MOTORISTA",
+        "CHEQUE"
+    )
 }
 data class PlacaResumo(
     val placa: String, val totalFretes: Int,
     val totalValor: Double, val totalAdiantamento: Double,
     val totalSaldo: Double, val totalRecebido: Double
+)
+data class ResumoFormaPagto(
+    val formaPagto: String, val totalFretes: Int,
+    val totalValor: Double
 )
 '''
 
@@ -212,9 +224,13 @@ interface FreteDao {
     @Query("SELECT COUNT(*) FROM fretes") suspend fun count(): Int
     @Query("SELECT * FROM fretes ORDER BY id DESC") fun getAll(): Flow<List<FreteEntity>>
     @Query("SELECT * FROM fretes WHERE id = :id") suspend fun getById(id: Long): FreteEntity?
+    @Query("SELECT * FROM fretes WHERE recebido = 0 ORDER BY id DESC") fun getNaoRecebidos(): Flow<List<FreteEntity>>
+    @Query("SELECT * FROM fretes WHERE transportadora = :transportadora ORDER BY id DESC") fun getPorTransportadora(transportadora: String): Flow<List<FreteEntity>>
+    @Query("SELECT * FROM fretes WHERE placa = :placa ORDER BY id DESC") fun getPorPlaca(placa: String): Flow<List<FreteEntity>>
     @Query("SELECT transportadora, SUM(saldoFrete) as total FROM fretes WHERE recebido = 0 GROUP BY transportadora ORDER BY total DESC")
     fun saldoPorTransportadora(): Flow<List<SaldoTransportadora>>
     @Query("SELECT SUM(saldoFrete) FROM fretes WHERE recebido = 0") fun saldoTotalAReceber(): Flow<Double?>
+    @Query("SELECT SUM(adiantamento) FROM fretes") fun totalAdiantamentos(): Flow<Double?>
     @Query("""
         SELECT placa, COUNT(*) as totalFretes,
                SUM(valorFrete) as totalValor,
@@ -226,6 +242,30 @@ interface FreteDao {
     fun resumoPorPlaca(): Flow<List<PlacaResumo>>
     @Query("SELECT * FROM fretes WHERE placa = :placa ORDER BY id DESC")
     fun getFretesPorPlaca(placa: String): Flow<List<FreteEntity>>
+    @Query("SELECT DISTINCT transportadora FROM fretes ORDER BY transportadora")
+    fun getAllTransportadoras(): Flow<List<String>>
+    
+    @Query("""
+        SELECT formaPgtoAdiant as formaPagto, COUNT(*) as totalFretes,
+               SUM(adiantamento) as totalValor
+        FROM fretes WHERE adiantamento > 0
+        GROUP BY formaPgtoAdiant ORDER BY totalValor DESC
+    """)
+    fun resumoAdiantamentoPorForma(): Flow<List<ResumoFormaPagto>>
+    
+    @Query("""
+        SELECT formaPgtoSaldo as formaPagto, COUNT(*) as totalFretes,
+               SUM(saldoFrete) as totalValor
+        FROM fretes WHERE saldoFrete > 0 AND recebido = 0
+        GROUP BY formaPgtoSaldo ORDER BY totalValor DESC
+    """)
+    fun resumoSaldoPorForma(): Flow<List<ResumoFormaPagto>>
+    
+    @Query("SELECT * FROM fretes WHERE formaPgtoAdiant = :forma ORDER BY id DESC")
+    fun getFretesPorFormaAdiant(forma: String): Flow<List<FreteEntity>>
+    
+    @Query("SELECT * FROM fretes WHERE formaPgtoSaldo = :forma AND recebido = 0 ORDER BY id DESC")
+    fun getFretesPorFormaSaldo(forma: String): Flow<List<FreteEntity>>
 }
 data class SaldoTransportadora(val transportadora: String, val total: Double)
 '''
@@ -276,12 +316,17 @@ A["app/src/main/java/com/gerfrota/fretes/data/Repository.kt"] = r'''package com.
 import kotlinx.coroutines.flow.Flow
 class Repository(private val dao: FreteDao, private val placaDao: PlacaDao) {
     val fretes: Flow<List<FreteEntity>> = dao.getAll()
+    val fretesNaoRecebidos: Flow<List<FreteEntity>> = dao.getNaoRecebidos()
     val saldoPorTransportadora: Flow<List<SaldoTransportadora>> = dao.saldoPorTransportadora()
     val saldoTotal: Flow<Double?> = dao.saldoTotalAReceber()
+    val totalAdiantamentos: Flow<Double?> = dao.totalAdiantamentos()
     val resumoPorPlaca: Flow<List<PlacaResumo>> = dao.resumoPorPlaca()
+    val resumoAdiantamentoPorForma: Flow<List<ResumoFormaPagto>> = dao.resumoAdiantamentoPorForma()
+    val resumoSaldoPorForma: Flow<List<ResumoFormaPagto>> = dao.resumoSaldoPorForma()
     val placasAtivas: Flow<List<PlacaEntity>> = placaDao.getAllAtivas()
     val placasLista: Flow<List<String>> = placaDao.getAllPlacasAtivas()
     val todasPlacas: Flow<List<PlacaEntity>> = placaDao.getAll()
+    val transportadoras: Flow<List<String>> = dao.getAllTransportadoras()
     suspend fun insert(f: FreteEntity) = dao.insert(f)
     suspend fun insertAll(fretes: List<FreteEntity>) = dao.insertAll(fretes)
     suspend fun update(f: FreteEntity) = dao.update(f)
@@ -290,6 +335,9 @@ class Repository(private val dao: FreteDao, private val placaDao: PlacaDao) {
     suspend fun count(): Int = dao.count()
     suspend fun getById(id: Long): FreteEntity? = dao.getById(id)
     fun fretesPorPlaca(placa: String): Flow<List<FreteEntity>> = dao.getFretesPorPlaca(placa)
+    fun fretesPorTransportadora(transportadora: String): Flow<List<FreteEntity>> = dao.getPorTransportadora(transportadora)
+    fun fretesPorFormaAdiant(forma: String): Flow<List<FreteEntity>> = dao.getFretesPorFormaAdiant(forma)
+    fun fretesPorFormaSaldo(forma: String): Flow<List<FreteEntity>> = dao.getFretesPorFormaSaldo(forma)
     suspend fun insertPlaca(placa: PlacaEntity) = placaDao.insert(placa)
     suspend fun insertPlacas(placas: List<PlacaEntity>) = placaDao.insertAll(placas)
     suspend fun updatePlaca(placa: PlacaEntity) = placaDao.update(placa)
@@ -437,7 +485,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 object PdfExporter {
     data class PdfResult(val success: Boolean, val message: String, val uri: Uri? = null)
-    suspend fun exportar(context: Context, fretes: List<FreteEntity>, titulo: String = "Relatório de Fretes"): PdfResult = withContext(Dispatchers.IO) {
+    suspend fun exportar(context: Context, fretes: List<FreteEntity>, titulo: String = "Relatorio de Fretes"): PdfResult = withContext(Dispatchers.IO) {
         runCatching {
             val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
             val df = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
@@ -446,23 +494,23 @@ object PdfExporter {
             val pTitle = Paint().apply { color = Color.parseColor("#0D47A1"); textSize = 20f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
             val pSub = Paint().apply { color = Color.parseColor("#1976D2"); textSize = 11f; isAntiAlias = true }
             val pHead = Paint().apply { color = Color.WHITE; textSize = 9f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
-            val pCell = Paint().apply { color = Color.BLACK; textSize = 8.5f; isAntiAlias = true }
-            val pBold = Paint().apply { color = Color.BLACK; textSize = 8.5f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+            val pCell = Paint().apply { color = Color.BLACK; textSize = 8f; isAntiAlias = true }
+            val pBold = Paint().apply { color = Color.BLACK; textSize = 8f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
             val pBgH = Paint().apply { color = Color.parseColor("#1976D2") }
             val pBgA = Paint().apply { color = Color.parseColor("#F5F5F5") }
             val pBord = Paint().apply { color = Color.parseColor("#BDBDBD"); style = Paint.Style.STROKE; strokeWidth = 0.5f }
             val pTot = Paint().apply { color = Color.parseColor("#0D47A1"); textSize = 12f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
-            val colX = floatArrayOf(margin, margin + 60, margin + 120, margin + 210, margin + 340, margin + 390, margin + 440, margin + 485)
-            val headers = arrayOf("Data", "Placa", "Transportadora", "Rota", "Valor", "Adiant.", "Saldo", "Pgto Saldo")
-            val rowH = 18f; val headerY = 90f; val rowsPerPage = 35
+            val colX = floatArrayOf(margin, margin + 50, margin + 100, margin + 180, margin + 290, margin + 340, margin + 390, margin + 440, margin + 485)
+            val headers = arrayOf("Data", "Placa", "Transportadora", "Rota", "Valor", "Adiant.", "Saldo", "Status")
+            val rowH = 16f; val headerY = 100f; val rowsPerPage = 40
             val totalPag = kotlin.math.max(1, kotlin.math.ceil(fretes.size.toDouble() / rowsPerPage).toInt())
-            var tV = 0.0; var tA = 0.0; var tS = 0.0
+            var tV = 0.0; var tA = 0.0; var tS = 0.0; var tRecebido = 0.0
             for (pg in 0 until totalPag) {
                 val page = pdf.startPage(PdfDocument.PageInfo.Builder(pageW, pageH, pg).create())
                 val c = page.canvas
                 c.drawText(titulo, margin, 40f, pTitle)
-                c.drawText("Gerado em ${df.format(Date())} - Página ${pg + 1} de $totalPag", margin, 58f, pSub)
-                c.drawLine(margin, 68f, pageW - margin, 68f, pBord)
+                c.drawText("Gerado em ${df.format(Date())} - Pagina ${pg + 1} de $totalPag", margin, 58f, pSub)
+                c.drawLine(margin, 70f, pageW - margin, 70f, pBord)
                 c.drawRect(margin, headerY - 12f, pageW - margin, headerY + 4f, pBgH)
                 headers.forEachIndexed { i, h -> c.drawText(h, colX[i], headerY, pHead) }
                 val ini = pg * rowsPerPage
@@ -474,32 +522,174 @@ object PdfExporter {
                     c.drawText(f.data, colX[0], y, pCell)
                     c.drawText(f.placa, colX[1], y, pCell)
                     c.drawText(f.transportadora.ifBlank { "-" }, colX[2], y, pCell)
-                    c.drawText("${f.origem.ifBlank{"-"}} -> ${f.destino.ifBlank{"-"}}".take(28), colX[3], y, pCell)
+                    c.drawText("${f.origem.ifBlank{"-"}} -> ${f.destino.ifBlank{"-"}}".take(22), colX[3], y, pCell)
                     c.drawText(nf.format(f.valorFrete), colX[4], y, pCell)
                     c.drawText(nf.format(f.adiantamento), colX[5], y, pCell)
                     c.drawText(nf.format(f.saldoFrete), colX[6], y, if (f.saldoFrete > 0) pBold else pCell)
-                    c.drawText(f.formaPgtoSaldo.take(14), colX[7], y, pCell)
+                    c.drawText(if (f.recebido) "Recebido" else "Pendente", colX[7], y, if (f.recebido) Paint().apply { color = Color.GREEN; textSize = 8f } else Paint().apply { color = Color.RED; textSize = 8f })
                     tV += f.valorFrete; tA += f.adiantamento; tS += f.saldoFrete
+                    if (f.recebido) tRecebido += f.saldoFrete
                     y += rowH
                 }
                 c.drawRect(margin, headerY - 12f, pageW - margin, y, pBord)
                 if (pg == totalPag - 1) {
                     val ty = y + 25f
-                    c.drawText("TOTAIS:", margin, ty, pTot)
-                    c.drawText("Valor: ${nf.format(tV)}", margin, ty + 18f, pBold)
-                    c.drawText("Adiantamentos: ${nf.format(tA)}", margin + 170f, ty + 18f, pBold)
-                    c.drawText("Saldo a Receber: ${nf.format(tS)}", margin + 360f, ty + 18f, pTot)
-                    c.drawText("Total de registros: ${fretes.size}", margin, ty + 38f, pSub)
+                    c.drawText("RESUMO:", margin, ty, pTot)
+                    c.drawText("Total Fretes: ${nf.format(tV)}", margin, ty + 18f, pBold)
+                    c.drawText("Total Adiantamentos: ${nf.format(tA)}", margin + 150f, ty + 18f, pBold)
+                    c.drawText("Total Recebido: ${nf.format(tRecebido)}", margin + 320f, ty + 18f, Paint().apply { color = Color.GREEN; textSize = 12f; isAntiAlias = true })
+                    c.drawText("Saldo a Receber: ${nf.format(tS)}", margin + 320f, ty + 36f, Paint().apply { color = Color.RED; textSize = 12f; isAntiAlias = true })
+                    c.drawText("Total de registros: ${fretes.size}", margin, ty + 56f, pSub)
                 }
                 pdf.finishPage(page)
             }
-            val fileName = "GerFrota_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale("pt","BR")).format(Date())}.pdf"
-            val folder = File(context.filesDir, "pdfs").apply { if (!exists()) mkdirs() }
+            val fileName = "GerFrota_Relatorio_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale("pt","BR")).format(Date())}.pdf"
+            val folder = File(context.filesDir, "relatorios").apply { if (!exists()) mkdirs() }
             val file = File(folder, fileName)
             FileOutputStream(file).use { out -> pdf.writeTo(out) }
             pdf.close()
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            PdfResult(true, "PDF gerado!", uri)
+            PdfResult(true, "Relatorio gerado!", uri)
+        }.getOrElse { PdfResult(false, "Erro: ${it.message}") }
+    }
+    suspend fun exportarAdiantamentoPorForma(
+        context: Context,
+        resumo: List<ResumoFormaPagto>,
+        fretes: List<FreteEntity>
+    ): PdfResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+            val df = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
+            val pdf = PdfDocument()
+            val pageW = 595; val pageH = 842; val margin = 30f
+            val pTitle = Paint().apply { color = Color.parseColor("#0D47A1"); textSize = 20f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+            val pSub = Paint().apply { color = Color.parseColor("#1976D2"); textSize = 11f; isAntiAlias = true }
+            val pHead = Paint().apply { color = Color.WHITE; textSize = 9f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+            val pCell = Paint().apply { color = Color.BLACK; textSize = 8f; isAntiAlias = true }
+            val pBold = Paint().apply { color = Color.BLACK; textSize = 8f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+            val pBgH = Paint().apply { color = Color.parseColor("#4CAF50") }
+            val pBgA = Paint().apply { color = Color.parseColor("#F5F5F5") }
+            val pBord = Paint().apply { color = Color.parseColor("#BDBDBD"); style = Paint.Style.STROKE; strokeWidth = 0.5f }
+            val pTot = Paint().apply { color = Color.parseColor("#0D47A1"); textSize = 12f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+            val colX = floatArrayOf(margin, margin + 60, margin + 120, margin + 200, margin + 280, margin + 360, margin + 440)
+            val headers = arrayOf("Data", "Placa", "Transportadora", "Rota", "Forma Pgto", "Valor Adiant.")
+            val rowH = 16f; val headerY = 100f; val rowsPerPage = 40
+            val fretesAdiant = fretes.filter { it.adiantamento > 0 }
+            val totalPag = kotlin.math.max(1, kotlin.math.ceil(fretesAdiant.size.toDouble() / rowsPerPage).toInt())
+            var tA = 0.0
+            for (pg in 0 until totalPag) {
+                val page = pdf.startPage(PdfDocument.PageInfo.Builder(pageW, pageH, pg).create())
+                val c = page.canvas
+                c.drawText("Relatorio de Adiantamentos por Forma de Pagamento", margin, 40f, pTitle)
+                c.drawText("Gerado em ${df.format(Date())} - Pagina ${pg + 1} de $totalPag", margin, 58f, pSub)
+                c.drawLine(margin, 70f, pageW - margin, 70f, pBord)
+                c.drawRect(margin, headerY - 12f, pageW - margin, headerY + 4f, pBgH)
+                headers.forEachIndexed { i, h -> c.drawText(h, colX[i], headerY, pHead) }
+                val ini = pg * rowsPerPage
+                val fim = kotlin.math.min(ini + rowsPerPage, fretesAdiant.size)
+                var y = headerY + rowH
+                for (idx in ini until fim) {
+                    val f = fretesAdiant[idx]
+                    if ((idx - ini) % 2 == 1) c.drawRect(margin, y - 10f, pageW - margin, y + 6f, pBgA)
+                    c.drawText(f.data, colX[0], y, pCell)
+                    c.drawText(f.placa, colX[1], y, pCell)
+                    c.drawText(f.transportadora.ifBlank { "-" }, colX[2], y, pCell)
+                    c.drawText("${f.origem.ifBlank{"-"}} -> ${f.destino.ifBlank{"-"}}".take(18), colX[3], y, pCell)
+                    c.drawText(f.formaPgtoAdiant, colX[4], y, pCell)
+                    c.drawText(nf.format(f.adiantamento), colX[5], y, pBold)
+                    tA += f.adiantamento
+                    y += rowH
+                }
+                c.drawRect(margin, headerY - 12f, pageW - margin, y, pBord)
+                if (pg == totalPag - 1) {
+                    val ty = y + 25f
+                    c.drawText("RESUMO POR FORMA DE PAGAMENTO:", margin, ty, pTot)
+                    var yPos = ty + 20f
+                    resumo.forEach { r ->
+                        c.drawText("${r.formaPagto}: ${r.totalFretes}x ${nf.format(r.totalValor)}", margin, yPos, pCell)
+                        yPos += 16f
+                    }
+                    c.drawText("TOTAL GERAL: ${nf.format(tA)}", margin, yPos + 10f, pTot)
+                }
+                pdf.finishPage(page)
+            }
+            val fileName = "GerFrota_Adiantamentos_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale("pt","BR")).format(Date())}.pdf"
+            val folder = File(context.filesDir, "relatorios").apply { if (!exists()) mkdirs() }
+            val file = File(folder, fileName)
+            FileOutputStream(file).use { out -> pdf.writeTo(out) }
+            pdf.close()
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            PdfResult(true, "Relatorio de adiantamentos gerado!", uri)
+        }.getOrElse { PdfResult(false, "Erro: ${it.message}") }
+    }
+    suspend fun exportarSaldoPorForma(
+        context: Context,
+        resumo: List<ResumoFormaPagto>,
+        fretes: List<FreteEntity>
+    ): PdfResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+            val df = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
+            val pdf = PdfDocument()
+            val pageW = 595; val pageH = 842; val margin = 30f
+            val pTitle = Paint().apply { color = Color.parseColor("#0D47A1"); textSize = 20f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+            val pSub = Paint().apply { color = Color.parseColor("#1976D2"); textSize = 11f; isAntiAlias = true }
+            val pHead = Paint().apply { color = Color.WHITE; textSize = 9f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+            val pCell = Paint().apply { color = Color.BLACK; textSize = 8f; isAntiAlias = true }
+            val pBold = Paint().apply { color = Color.BLACK; textSize = 8f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+            val pBgH = Paint().apply { color = Color.parseColor("#F44336") }
+            val pBgA = Paint().apply { color = Color.parseColor("#F5F5F5") }
+            val pBord = Paint().apply { color = Color.parseColor("#BDBDBD"); style = Paint.Style.STROKE; strokeWidth = 0.5f }
+            val pTot = Paint().apply { color = Color.parseColor("#0D47A1"); textSize = 12f; isAntiAlias = true; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+            val colX = floatArrayOf(margin, margin + 60, margin + 120, margin + 200, margin + 280, margin + 360, margin + 440)
+            val headers = arrayOf("Data", "Placa", "Transportadora", "Rota", "Forma Pgto", "Saldo")
+            val rowH = 16f; val headerY = 100f; val rowsPerPage = 40
+            val fretesSaldo = fretes.filter { it.saldoFrete > 0 && !it.recebido }
+            val totalPag = kotlin.math.max(1, kotlin.math.ceil(fretesSaldo.size.toDouble() / rowsPerPage).toInt())
+            var tS = 0.0
+            for (pg in 0 until totalPag) {
+                val page = pdf.startPage(PdfDocument.PageInfo.Builder(pageW, pageH, pg).create())
+                val c = page.canvas
+                c.drawText("Relatorio de Saldo a Receber por Forma de Pagamento", margin, 40f, pTitle)
+                c.drawText("Gerado em ${df.format(Date())} - Pagina ${pg + 1} de $totalPag", margin, 58f, pSub)
+                c.drawLine(margin, 70f, pageW - margin, 70f, pBord)
+                c.drawRect(margin, headerY - 12f, pageW - margin, headerY + 4f, pBgH)
+                headers.forEachIndexed { i, h -> c.drawText(h, colX[i], headerY, pHead) }
+                val ini = pg * rowsPerPage
+                val fim = kotlin.math.min(ini + rowsPerPage, fretesSaldo.size)
+                var y = headerY + rowH
+                for (idx in ini until fim) {
+                    val f = fretesSaldo[idx]
+                    if ((idx - ini) % 2 == 1) c.drawRect(margin, y - 10f, pageW - margin, y + 6f, pBgA)
+                    c.drawText(f.data, colX[0], y, pCell)
+                    c.drawText(f.placa, colX[1], y, pCell)
+                    c.drawText(f.transportadora.ifBlank { "-" }, colX[2], y, pCell)
+                    c.drawText("${f.origem.ifBlank{"-"}} -> ${f.destino.ifBlank{"-"}}".take(18), colX[3], y, pCell)
+                    c.drawText(f.formaPgtoSaldo, colX[4], y, pCell)
+                    c.drawText(nf.format(f.saldoFrete), colX[5], y, pBold)
+                    tS += f.saldoFrete
+                    y += rowH
+                }
+                c.drawRect(margin, headerY - 12f, pageW - margin, y, pBord)
+                if (pg == totalPag - 1) {
+                    val ty = y + 25f
+                    c.drawText("RESUMO POR FORMA DE PAGAMENTO:", margin, ty, pTot)
+                    var yPos = ty + 20f
+                    resumo.forEach { r ->
+                        c.drawText("${r.formaPagto}: ${r.totalFretes}x ${nf.format(r.totalValor)}", margin, yPos, pCell)
+                        yPos += 16f
+                    }
+                    c.drawText("TOTAL GERAL A RECEBER: ${nf.format(tS)}", margin, yPos + 10f, pTot)
+                }
+                pdf.finishPage(page)
+            }
+            val fileName = "GerFrota_Saldo_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale("pt","BR")).format(Date())}.pdf"
+            val folder = File(context.filesDir, "relatorios").apply { if (!exists()) mkdirs() }
+            val file = File(folder, fileName)
+            FileOutputStream(file).use { out -> pdf.writeTo(out) }
+            pdf.close()
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+            PdfResult(true, "Relatorio de saldo gerado!", uri)
         }.getOrElse { PdfResult(false, "Erro: ${it.message}") }
     }
 }
@@ -1319,61 +1509,129 @@ fun VoiceField(label: String, value: String, onChange: (String) -> Unit,
 }
 '''
 
-# 20. SaldoReceberScreen.kt
-A["app/src/main/java/com/gerfrota/fretes/ui/SaldoReceberScreen.kt"] = r'''package com.gerfrota.fretes.ui
+A["app/src/main/java/com/gerfrota/fretes/ui/RelatoriosScreen.kt"] = r'''package com.gerfrota.fretes.ui
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.gerfrota.fretes.data.PdfExporter
 import com.gerfrota.fretes.data.Repository
+import kotlinx.coroutines.launch
 import java.text.NumberFormat
-import java.util.Locale
+import java.util.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SaldoReceberScreen(repo: Repository, onBack: () -> Unit) {
-    val lista by repo.saldoPorTransportadora.collectAsState(initial = emptyList())
-    val total by repo.saldoTotal.collectAsState(initial = 0.0)
+fun RelatoriosScreen(repo: Repository, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val fretes by repo.fretes.collectAsState(initial = emptyList())
+    val fretesNaoRecebidos by repo.fretesNaoRecebidos.collectAsState(initial = emptyList())
+    val totalAdiant by repo.totalAdiantamentos.collectAsState(initial = 0.0)
+    val resumoAdiant by repo.resumoAdiantamentoPorForma.collectAsState(initial = emptyList())
+    val resumoSaldo by repo.resumoSaldoPorForma.collectAsState(initial = emptyList())
+    var gerando by remember { mutableStateOf(false) }
+    var tipoRelatorio by remember { mutableStateOf("total") }
     val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
-    Scaffold(topBar = {
-        TopAppBar(title = { Text("Saldo a Receber") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } })
-    }) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            Card(modifier = Modifier.fillMaxWidth().padding(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                Column(Modifier.padding(20.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("TOTAL GERAL A RECEBER", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold)
-                    Text(nf.format(total ?: 0.0).toString(), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(text = "Relatorios") },
+                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } }
+            )
+        }
+    ) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(text = "Relatorios PDF", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Escolha o tipo e gere em PDF", fontSize = 12.sp)
                 }
             }
-            Text("  Por Transportadora", fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            if (lista.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Nenhum saldo pendente", color = Color.Gray)
+            Spacer(Modifier.height(16.dp))
+            Text(text = "Tipo de Relatorio", fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = tipoRelatorio == "total", onClick = { tipoRelatorio = "total" },
+                    label = { Text(text = "Total") })
+                FilterChip(selected = tipoRelatorio == "periodo", onClick = { tipoRelatorio = "periodo" },
+                    label = { Text(text = "Periodo") })
+                FilterChip(selected = tipoRelatorio == "adiant_forma", onClick = { tipoRelatorio = "adiant_forma" },
+                    label = { Text(text = "Adiant. por Forma") })
+                FilterChip(selected = tipoRelatorio == "saldo_forma", onClick = { tipoRelatorio = "saldo_forma" },
+                    label = { Text(text = "Saldo por Forma") })
+            }
+            Spacer(Modifier.height(16.dp))
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(text = "Resumo Geral", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text(text = "Total de fretes: ${fretes.size}", fontSize = 12.sp)
+                    Text(text = "Fretes nao recebidos: ${fretesNaoRecebidos.size}", fontSize = 12.sp)
+                    Text(text = "Total adiantamentos: ${nf.format(totalAdiant ?: 0.0)}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
-            } else {
-                LazyColumn(Modifier.padding(horizontal = 16.dp)) {
-                    items(lista) { item ->
-                        Card(Modifier.fillMaxWidth().padding(vertical = 4.dp), elevation = CardDefaults.cardElevation(2.dp)) {
-                            Row(Modifier.padding(16.dp).fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically) {
-                                Text(item.transportadora.ifBlank { "(sem nome)" }, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                                Text(nf.format(item.total).toString(), fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.error, fontSize = 18.sp)
+            }
+            if (tipoRelatorio == "adiant_forma") {
+                Spacer(Modifier.height(16.dp))
+                Text(text = "Adiantamentos por Forma de Pagamento", fontWeight = FontWeight.Bold)
+                if (resumoAdiant.isEmpty()) {
+                    Text(text = "Nenhum adiantamento registrado", color = androidx.compose.ui.graphics.Color.Gray, modifier = Modifier.padding(8.dp))
+                } else {
+                    resumoAdiant.forEach { r ->
+                        Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Row(Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(text = r.formaPagto, fontWeight = FontWeight.Bold)
+                                Text(text = "${r.totalFretes}x ${nf.format(r.totalValor)}", fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
+                }
+            }
+            if (tipoRelatorio == "saldo_forma") {
+                Spacer(Modifier.height(16.dp))
+                Text(text = "Saldo a Receber por Forma de Pagamento", fontWeight = FontWeight.Bold)
+                if (resumoSaldo.isEmpty()) {
+                    Text(text = "Nenhum saldo pendente", color = androidx.compose.ui.graphics.Color.Gray, modifier = Modifier.padding(8.dp))
+                } else {
+                    resumoSaldo.forEach { r ->
+                        Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                            Row(Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(text = r.formaPagto, fontWeight = FontWeight.Bold)
+                                Text(text = "${r.totalFretes}x ${nf.format(r.totalValor)}", fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = {
+                if (gerando) return@Button
+                gerando = true
+                scope.launch {
+                    val resultado = when (tipoRelatorio) {
+                        "adiant_forma" -> PdfExporter.exportarAdiantamentoPorForma(context, resumoAdiant, fretes)
+                        "saldo_forma" -> PdfExporter.exportarSaldoPorForma(context, resumoSaldo, fretes)
+                        else -> PdfExporter.exportar(context, fretes, "Relatorio Completo")
+                    }
+                    gerando = false
+                    Toast.makeText(context, if (resultado.success) "Relatorio gerado!" else resultado.message, Toast.LENGTH_LONG).show()
+                }
+            }, modifier = Modifier.fillMaxWidth().height(56.dp), enabled = !gerando) {
+                if (gerando) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                else {
+                    Icon(Icons.Default.PictureAsPdf, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "GERAR RELATORIO PDF", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
