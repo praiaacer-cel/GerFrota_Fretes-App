@@ -2,17 +2,13 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================
-  GERADOR DO PROJETO GerFrota Fretes
+  GERADOR DO PROJETO GerFrota Fretes - VERSÃO FINAL
 =============================================================
   App Android para gestão de fretes e transportes
   
   FUNCIONALIDADES:
   • Cadastro de fretes com 5 placas pré-configuradas:
-    - MLH 6C45
-    - QEW 8G04
-    - IWU 3D11
-    - ITL 4F00
-    - IXL 6H19
+    - MLH 6C45, QEW 8G04, IWU 3D11, ITL 4F00, IXL 6H19
   • Controle de valores, adiantamentos e saldos
   • 10 formas de pagamento
   • Backup local em JSON
@@ -23,24 +19,13 @@
   • Visualização por transportadora
   
   COLUNAS DA PLANILHA:
-  • DATA
-  • VALOR DO FRETE
-  • ADIANTAMENTO
-  • FORMA PGTO ADIANT.
-  • SALDO DO FRETE
-  • FORMA PGTO SALDO
-  • RECEBIDO N/S
-  • TRANSPORTADORA
-  • ORIGEM
-  • DESTINO
+  • DATA | VALOR DO FRETE | ADIANTAMENTO
+  • FORMA PGTO ADIANT. | SALDO DO FRETE
+  • FORMA PGTO SALDO | RECEBIDO N/S
+  • TRANSPORTADORA | ORIGEM | DESTINO
   
   USO: python3 criar_gerfrota_fretes.py
-  
-  REQUISITOS:
-  • Python 3.6+
-  • Android Studio (para compilação)
-  • JDK 17
-  
+  REQUISITOS: Python 3.6+, JDK 17
   AUTOR: GerFrota Development Team
   VERSÃO: 1.0.0
 =============================================================
@@ -49,66 +34,45 @@
 import os
 import sys
 
-# ... (o resto do seu código continua aqui) ...
-import os
-import sys
-
 PROJETO = "GerFrotaFretesApp"
-ARQUIVOS = {}
+A = {}
 
-# ============================================================
 # 1. settings.gradle.kts
-# ============================================================
-ARQUIVOS["settings.gradle.kts"] = r'''pluginManagement {
-    repositories {
-        google()
-        mavenCentral()
-        gradlePluginPortal()
-    }
+A["settings.gradle.kts"] = r'''pluginManagement {
+    repositories { google(); mavenCentral(); gradlePluginPortal() }
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories {
-        google()
-        mavenCentral()
-    }
+    repositories { google(); mavenCentral() }
 }
 rootProject.name = "GerFrotaFretes"
 include(":app")
 '''
 
-# ============================================================
 # 2. build.gradle.kts (raiz)
-# ============================================================
-ARQUIVOS["build.gradle.kts"] = r'''plugins {
+A["build.gradle.kts"] = r'''plugins {
     id("com.android.application") version "8.2.0" apply false
     id("org.jetbrains.kotlin.android") version "1.9.20" apply false
     id("com.google.devtools.ksp") version "1.9.20-1.0.14" apply false
 }
 '''
 
-# ============================================================
 # 3. gradle.properties
-# ============================================================
-ARQUIVOS["gradle.properties"] = r'''org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+A["gradle.properties"] = r'''org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
 android.useAndroidX=true
 kotlin.code.style=official
 android.nonTransitiveRClass=true
 '''
 
-# ============================================================
-# 4. app/build.gradle.kts - SEM DEPENDÊNCIAS PROBLEMÁTICAS
-# ============================================================
-ARQUIVOS["app/build.gradle.kts"] = r'''plugins {
+# 4. app/build.gradle.kts
+A["app/build.gradle.kts"] = r'''plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
 }
-
 android {
     namespace = "com.gerfrota.fretes"
     compileSdk = 34
-
     defaultConfig {
         applicationId = "com.gerfrota.fretes"
         minSdk = 26
@@ -116,7 +80,6 @@ android {
         versionCode = 1
         versionName = "1.0"
     }
-
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.4" }
     compileOptions {
@@ -124,13 +87,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildTypes {
-        release { isMinifyEnabled = false }
-    }
+    buildTypes { release { isMinifyEnabled = false } }
 }
-
 dependencies {
-    // AndroidX e Compose
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
@@ -141,22 +100,16 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.navigation:navigation-compose:2.7.7")
-    
-    // Room Database
     implementation("androidx.room:room-runtime:2.6.1")
     implementation("androidx.room:room-ktx:2.6.1")
     ksp("androidx.room:room-compiler:2.6.1")
-    
-    // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
 }
 '''
 
-# ============================================================
 # 5. AndroidManifest.xml
-# ============================================================
-ARQUIVOS["app/src/main/AndroidManifest.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
+A["app/src/main/AndroidManifest.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
@@ -185,34 +138,25 @@ ARQUIVOS["app/src/main/AndroidManifest.xml"] = r'''<?xml version="1.0" encoding=
 </manifest>
 '''
 
-# ============================================================
-# 6. data/PlacaEntity.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/PlacaEntity.kt"] = r'''package com.gerfrota.fretes.data
-
+# 6. PlacaEntity.kt
+A["app/src/main/java/com/gerfrota/fretes/data/PlacaEntity.kt"] = r'''package com.gerfrota.fretes.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-
 @Entity(tableName = "placas")
 data class PlacaEntity(
     @PrimaryKey val placa: String,
     val ativa: Boolean = true,
     val dataCadastro: Long = System.currentTimeMillis()
 )
-
 object PlacasPadrao {
     val lista = listOf("MLH 6C45", "QEW 8G04", "IWU 3D11", "ITL 4F00", "IXL 6H19")
 }
 '''
 
-# ============================================================
-# 7. data/FreteEntity.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/FreteEntity.kt"] = r'''package com.gerfrota.fretes.data
-
+# 7. FreteEntity.kt
+A["app/src/main/java/com/gerfrota/fretes/data/FreteEntity.kt"] = r'''package com.gerfrota.fretes.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-
 @Entity(tableName = "fretes")
 data class FreteEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -222,13 +166,11 @@ data class FreteEntity(
     val recebido: Boolean, val transportadora: String,
     val origem: String, val destino: String, val syncStatus: Int = 0
 )
-
 object FormasPagamento {
     val opcoes = listOf("Dinheiro", "PIX", "Transferência Bancária",
         "Cartão Débito", "Cartão Crédito", "Cheque",
         "Boleto", "Vale-Frete", "Depósito", "Outros")
 }
-
 data class PlacaResumo(
     val placa: String, val totalFretes: Int,
     val totalValor: Double, val totalAdiantamento: Double,
@@ -236,82 +178,43 @@ data class PlacaResumo(
 )
 '''
 
-# ============================================================
-# 8. data/PlacaDao.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/PlacaDao.kt"] = r'''package com.gerfrota.fretes.data
-
+# 8. PlacaDao.kt
+A["app/src/main/java/com/gerfrota/fretes/data/PlacaDao.kt"] = r'''package com.gerfrota.fretes.data
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
-
 @Dao
 interface PlacaDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insert(placa: PlacaEntity)
-
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAll(placas: List<PlacaEntity>)
-
-    @Update
-    suspend fun update(placa: PlacaEntity)
-
-    @Delete
-    suspend fun delete(placa: PlacaEntity)
-
-    @Query("DELETE FROM placas WHERE placa = :placa")
-    suspend fun deleteByPlaca(placa: String)
-
-    @Query("SELECT * FROM placas WHERE ativa = 1 ORDER BY dataCadastro DESC")
-    fun getAllAtivas(): Flow<List<PlacaEntity>>
-
-    @Query("SELECT * FROM placas ORDER BY dataCadastro DESC")
-    fun getAll(): Flow<List<PlacaEntity>>
-
-    @Query("SELECT placa FROM placas WHERE ativa = 1 ORDER BY placa ASC")
-    fun getAllPlacasAtivas(): Flow<List<String>>
-
-    @Query("SELECT COUNT(*) FROM placas WHERE placa = :placa")
-    suspend fun countByPlaca(placa: String): Int
-
-    @Query("UPDATE placas SET ativa = 0 WHERE placa = :placa")
-    suspend fun desativar(placa: String)
-
-    @Query("UPDATE placas SET ativa = 1 WHERE placa = :placa")
-    suspend fun ativar(placa: String)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insert(placa: PlacaEntity)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insertAll(placas: List<PlacaEntity>)
+    @Update suspend fun update(placa: PlacaEntity)
+    @Delete suspend fun delete(placa: PlacaEntity)
+    @Query("DELETE FROM placas WHERE placa = :placa") suspend fun deleteByPlaca(placa: String)
+    @Query("SELECT * FROM placas WHERE ativa = 1 ORDER BY dataCadastro DESC") fun getAllAtivas(): Flow<List<PlacaEntity>>
+    @Query("SELECT * FROM placas ORDER BY dataCadastro DESC") fun getAll(): Flow<List<PlacaEntity>>
+    @Query("SELECT placa FROM placas WHERE ativa = 1 ORDER BY placa ASC") fun getAllPlacasAtivas(): Flow<List<String>>
+    @Query("SELECT COUNT(*) FROM placas WHERE placa = :placa") suspend fun countByPlaca(placa: String): Int
+    @Query("UPDATE placas SET ativa = 0 WHERE placa = :placa") suspend fun desativar(placa: String)
+    @Query("UPDATE placas SET ativa = 1 WHERE placa = :placa") suspend fun ativar(placa: String)
 }
 '''
 
-# ============================================================
-# 9. data/FreteDao.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/FreteDao.kt"] = r'''package com.gerfrota.fretes.data
-
+# 9. FreteDao.kt
+A["app/src/main/java/com/gerfrota/fretes/data/FreteDao.kt"] = r'''package com.gerfrota.fretes.data
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
-
 @Dao
 interface FreteDao {
-    @Insert
-    suspend fun insert(frete: FreteEntity)
-    @Insert
-    suspend fun insertAll(fretes: List<FreteEntity>)
-    @Update
-    suspend fun update(frete: FreteEntity)
-    @Delete
-    suspend fun delete(frete: FreteEntity)
-    @Query("DELETE FROM fretes")
-    suspend fun deleteAll()
-    @Query("SELECT COUNT(*) FROM fretes")
-    suspend fun count(): Int
-    @Query("SELECT * FROM fretes ORDER BY id DESC")
-    fun getAll(): Flow<List<FreteEntity>>
-    @Query("SELECT * FROM fretes WHERE id = :id")
-    suspend fun getById(id: Long): FreteEntity?
+    @Insert suspend fun insert(frete: FreteEntity)
+    @Insert suspend fun insertAll(fretes: List<FreteEntity>)
+    @Update suspend fun update(frete: FreteEntity)
+    @Delete suspend fun delete(frete: FreteEntity)
+    @Query("DELETE FROM fretes") suspend fun deleteAll()
+    @Query("SELECT COUNT(*) FROM fretes") suspend fun count(): Int
+    @Query("SELECT * FROM fretes ORDER BY id DESC") fun getAll(): Flow<List<FreteEntity>>
+    @Query("SELECT * FROM fretes WHERE id = :id") suspend fun getById(id: Long): FreteEntity?
     @Query("SELECT transportadora, SUM(saldoFrete) as total FROM fretes WHERE recebido = 0 GROUP BY transportadora ORDER BY total DESC")
     fun saldoPorTransportadora(): Flow<List<SaldoTransportadora>>
-    @Query("SELECT SUM(saldoFrete) FROM fretes WHERE recebido = 0")
-    fun saldoTotalAReceber(): Flow<Double?>
-    
+    @Query("SELECT SUM(saldoFrete) FROM fretes WHERE recebido = 0") fun saldoTotalAReceber(): Flow<Double?>
     @Query("""
         SELECT placa, COUNT(*) as totalFretes,
                SUM(valorFrete) as totalValor,
@@ -321,34 +224,26 @@ interface FreteDao {
         FROM fretes GROUP BY placa ORDER BY totalSaldo DESC
     """)
     fun resumoPorPlaca(): Flow<List<PlacaResumo>>
-    
     @Query("SELECT * FROM fretes WHERE placa = :placa ORDER BY id DESC")
     fun getFretesPorPlaca(placa: String): Flow<List<FreteEntity>>
 }
-
 data class SaldoTransportadora(val transportadora: String, val total: Double)
 '''
 
-# ============================================================
-# 10. data/AppDatabase.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/AppDatabase.kt"] = r'''package com.gerfrota.fretes.data
-
+# 10. AppDatabase.kt
+A["app/src/main/java/com/gerfrota/fretes/data/AppDatabase.kt"] = r'''package com.gerfrota.fretes.data
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
-
 @Database(entities = [FreteEntity::class, PlacaEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun freteDao(): FreteDao
     abstract fun placaDao(): PlacaDao
-
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
-
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
@@ -358,13 +253,11 @@ abstract class AppDatabase : RoomDatabase() {
                         `dataCadastro` INTEGER NOT NULL DEFAULT 0
                     )
                 """.trimIndent())
-                
                 PlacasPadrao.lista.forEach { placa ->
                     db.execSQL("INSERT OR IGNORE INTO `placas` (placa, ativa, dataCadastro) VALUES ('$placa', 1, ${System.currentTimeMillis()})")
                 }
             }
         }
-
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -378,23 +271,17 @@ abstract class AppDatabase : RoomDatabase() {
 }
 '''
 
-# ============================================================
-# 11. data/Repository.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/Repository.kt"] = r'''package com.gerfrota.fretes.data
-
+# 11. Repository.kt
+A["app/src/main/java/com/gerfrota/fretes/data/Repository.kt"] = r'''package com.gerfrota.fretes.data
 import kotlinx.coroutines.flow.Flow
-
 class Repository(private val dao: FreteDao, private val placaDao: PlacaDao) {
     val fretes: Flow<List<FreteEntity>> = dao.getAll()
     val saldoPorTransportadora: Flow<List<SaldoTransportadora>> = dao.saldoPorTransportadora()
     val saldoTotal: Flow<Double?> = dao.saldoTotalAReceber()
     val resumoPorPlaca: Flow<List<PlacaResumo>> = dao.resumoPorPlaca()
-    
     val placasAtivas: Flow<List<PlacaEntity>> = placaDao.getAllAtivas()
     val placasLista: Flow<List<String>> = placaDao.getAllPlacasAtivas()
     val todasPlacas: Flow<List<PlacaEntity>> = placaDao.getAll()
-
     suspend fun insert(f: FreteEntity) = dao.insert(f)
     suspend fun insertAll(fretes: List<FreteEntity>) = dao.insertAll(fretes)
     suspend fun update(f: FreteEntity) = dao.update(f)
@@ -403,7 +290,6 @@ class Repository(private val dao: FreteDao, private val placaDao: PlacaDao) {
     suspend fun count(): Int = dao.count()
     suspend fun getById(id: Long): FreteEntity? = dao.getById(id)
     fun fretesPorPlaca(placa: String): Flow<List<FreteEntity>> = dao.getFretesPorPlaca(placa)
-
     suspend fun insertPlaca(placa: PlacaEntity) = placaDao.insert(placa)
     suspend fun insertPlacas(placas: List<PlacaEntity>) = placaDao.insertAll(placas)
     suspend fun updatePlaca(placa: PlacaEntity) = placaDao.update(placa)
@@ -415,15 +301,11 @@ class Repository(private val dao: FreteDao, private val placaDao: PlacaDao) {
 }
 '''
 
-# ============================================================
-# 12. data/AuthManager.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/AuthManager.kt"] = r'''package com.gerfrota.fretes.data
-
+# 12. AuthManager.kt
+A["app/src/main/java/com/gerfrota/fretes/data/AuthManager.kt"] = r'''package com.gerfrota.fretes.data
 import android.content.Context
 import android.content.SharedPreferences
 import java.security.MessageDigest
-
 object AuthManager {
     private const val PREFS = "gerfrota_auth"
     private fun prefs(ctx: Context): SharedPreferences = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -456,15 +338,11 @@ object AuthManager {
     fun getEmail(ctx: Context): String? = prefs(ctx).getString("email", null)
     fun isRegistered(ctx: Context): Boolean = prefs(ctx).contains("email")
 }
-
 enum class LoginResult { SUCCESS, WRONG_EMAIL, WRONG_PASSWORD, NOT_REGISTERED }
 '''
 
-# ============================================================
-# 13. data/LocalBackupManager.kt - BACKUP LOCAL COMPLETO
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/LocalBackupManager.kt"] = r'''package com.gerfrota.fretes.data
-
+# 13. LocalBackupManager.kt
+A["app/src/main/java/com/gerfrota/fretes/data/LocalBackupManager.kt"] = r'''package com.gerfrota.fretes.data
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -473,34 +351,28 @@ import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-
 object LocalBackupManager {
-    
     suspend fun criarBackupLocal(context: Context, fretes: List<FreteEntity>): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         runCatching {
             val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale("pt", "BR"))
-            val timestamp = sdf.format(Date())
-            val fileName = "gerfrota_backup_$timestamp.json"
+            val fileName = "gerfrota_backup_${sdf.format(Date())}.json"
             val backupDir = File(context.filesDir, "backups").apply { if (!exists()) mkdirs() }
             val backupFile = File(backupDir, fileName)
-            
             val jsonArray = JSONArray()
-            fretes.forEach { frete ->
+            fretes.forEach { f ->
                 jsonArray.put(JSONObject().apply {
-                    put("id", frete.id); put("data", frete.data); put("placa", frete.placa)
-                    put("valorFrete", frete.valorFrete); put("adiantamento", frete.adiantamento)
-                    put("formaPgtoAdiant", frete.formaPgtoAdiant); put("saldoFrete", frete.saldoFrete)
-                    put("formaPgtoSaldo", frete.formaPgtoSaldo); put("recebido", frete.recebido)
-                    put("transportadora", frete.transportadora); put("origem", frete.origem)
-                    put("destino", frete.destino); put("syncStatus", frete.syncStatus)
+                    put("id", f.id); put("data", f.data); put("placa", f.placa)
+                    put("valorFrete", f.valorFrete); put("adiantamento", f.adiantamento)
+                    put("formaPgtoAdiant", f.formaPgtoAdiant); put("saldoFrete", f.saldoFrete)
+                    put("formaPgtoSaldo", f.formaPgtoSaldo); put("recebido", f.recebido)
+                    put("transportadora", f.transportadora); put("origem", f.origem)
+                    put("destino", f.destino); put("syncStatus", f.syncStatus)
                 })
             }
-            
             backupFile.writeText(jsonArray.toString(2))
             Pair(true, backupFile.absolutePath)
         }.getOrElse { Pair(false, "Erro ao criar backup local: ${it.message}") }
     }
-    
     suspend fun listarBackupsLocais(context: Context): List<File> = withContext(Dispatchers.IO) {
         val backupDir = File(context.filesDir, "backups")
         if (backupDir.exists()) {
@@ -508,16 +380,12 @@ object LocalBackupManager {
                 ?.sortedByDescending { it.lastModified() } ?: emptyList()
         } else emptyList()
     }
-    
     suspend fun restaurarBackupLocal(context: Context, filePath: String): Pair<Boolean, List<FreteEntity>> = withContext(Dispatchers.IO) {
         runCatching {
             val file = File(filePath)
             if (!file.exists()) return@withContext Pair(false, emptyList())
-            
-            val jsonContent = file.readText()
-            val jsonArray = JSONArray(jsonContent)
+            val jsonArray = JSONArray(file.readText())
             val fretes = mutableListOf<FreteEntity>()
-            
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
                 fretes.add(FreteEntity(
@@ -536,11 +404,8 @@ object LocalBackupManager {
 }
 '''
 
-# ============================================================
-# 14. data/PdfExporter.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/PdfExporter.kt"] = r'''package com.gerfrota.fretes.data
-
+# 14. PdfExporter.kt
+A["app/src/main/java/com/gerfrota/fretes/data/PdfExporter.kt"] = r'''package com.gerfrota.fretes.data
 import android.content.Context
 import android.graphics.Color
 import android.graphics.Paint
@@ -555,7 +420,6 @@ import java.io.FileOutputStream
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
-
 object PdfExporter {
     data class PdfResult(val success: Boolean, val message: String, val uri: Uri? = null)
     suspend fun exportar(context: Context, fretes: List<FreteEntity>, titulo: String = "Relatório de Fretes"): PdfResult = withContext(Dispatchers.IO) {
@@ -582,7 +446,7 @@ object PdfExporter {
                 val page = pdf.startPage(PdfDocument.PageInfo.Builder(pageW, pageH, pg).create())
                 val c = page.canvas
                 c.drawText(titulo, margin, 40f, pTitle)
-                c.drawText("Gerado em ${df.format(Date())} • Página ${pg + 1} de $totalPag", margin, 58f, pSub)
+                c.drawText("Gerado em ${df.format(Date())} - Página ${pg + 1} de $totalPag", margin, 58f, pSub)
                 c.drawLine(margin, 68f, pageW - margin, 68f, pBord)
                 c.drawRect(margin, headerY - 12f, pageW - margin, headerY + 4f, pBgH)
                 headers.forEachIndexed { i, h -> c.drawText(h, colX[i], headerY, pHead) }
@@ -595,7 +459,7 @@ object PdfExporter {
                     c.drawText(f.data, colX[0], y, pCell)
                     c.drawText(f.placa, colX[1], y, pCell)
                     c.drawText(f.transportadora.ifBlank { "-" }, colX[2], y, pCell)
-                    c.drawText("${f.origem.ifBlank{"-"}} → ${f.destino.ifBlank{"-"}}".take(28), colX[3], y, pCell)
+                    c.drawText("${f.origem.ifBlank{"-"}} -> ${f.destino.ifBlank{"-"}}".take(28), colX[3], y, pCell)
                     c.drawText(nf.format(f.valorFrete), colX[4], y, pCell)
                     c.drawText(nf.format(f.adiantamento), colX[5], y, pCell)
                     c.drawText(nf.format(f.saldoFrete), colX[6], y, if (f.saldoFrete > 0) pBold else pCell)
@@ -626,11 +490,8 @@ object PdfExporter {
 }
 '''
 
-# ============================================================
-# 15. ui/LoginScreen.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/LoginScreen.kt"] = r'''package com.gerfrota.fretes.ui
-
+# 15. LoginScreen.kt
+A["app/src/main/java/com/gerfrota/fretes/ui/LoginScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -655,7 +516,6 @@ import com.gerfrota.fretes.R
 import com.gerfrota.fretes.data.AuthManager
 import com.gerfrota.fretes.data.LoginResult
 import com.gerfrota.fretes.data.Repository
-
 @Composable
 fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
     val context = LocalContext.current
@@ -664,7 +524,6 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
     var confirmPassword by remember { mutableStateOf("") }
     var isRegisterMode by remember { mutableStateOf(!AuthManager.isRegistered(context)) }
     var loading by remember { mutableStateOf(false) }
-
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.primary) {
         Column(modifier = Modifier.fillMaxSize().padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -703,19 +562,19 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
                         loading = true
                         if (isRegisterMode) {
                             if (password != confirmPassword) {
-                                Toast.makeText(context, "As senhas não conferem", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "As senhas nao conferem", Toast.LENGTH_SHORT).show()
                                 loading = false; return@Button
                             }
                             if (AuthManager.registrar(context, email, password)) {
                                 Toast.makeText(context, "Conta criada!", Toast.LENGTH_SHORT).show()
                                 onLoginSuccess()
                             } else {
-                                Toast.makeText(context, "Preencha e-mail e senha (mín. 4)", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Preencha e-mail e senha (min. 4)", Toast.LENGTH_SHORT).show()
                             }
                         } else {
                             when (AuthManager.login(context, email, password)) {
                                 LoginResult.SUCCESS -> onLoginSuccess()
-                                LoginResult.WRONG_EMAIL -> Toast.makeText(context, "E-mail não cadastrado", Toast.LENGTH_SHORT).show()
+                                LoginResult.WRONG_EMAIL -> Toast.makeText(context, "E-mail nao cadastrado", Toast.LENGTH_SHORT).show()
                                 LoginResult.WRONG_PASSWORD -> Toast.makeText(context, "Senha incorreta", Toast.LENGTH_SHORT).show()
                                 LoginResult.NOT_REGISTERED -> {
                                     isRegisterMode = true
@@ -727,12 +586,12 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
                     }, modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(12.dp), enabled = !loading) {
                         if (loading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                        else Text(if (isRegisterMode) "📝 CRIAR CONTA" else "🔐 ENTRAR", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        else Text(if (isRegisterMode) "CRIAR CONTA" else "ENTRAR", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                     if (AuthManager.isRegistered(context)) {
                         Spacer(Modifier.height(8.dp))
                         TextButton(onClick = { isRegisterMode = !isRegisterMode }, modifier = Modifier.fillMaxWidth()) {
-                            Text(if (isRegisterMode) "Já tenho conta — Entrar" else "Não tenho conta — Criar agora", fontSize = 13.sp)
+                            Text(if (isRegisterMode) "Ja tenho conta - Entrar" else "Nao tenho conta - Criar agora", fontSize = 13.sp)
                         }
                     }
                 }
@@ -746,11 +605,8 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
 }
 '''
 
-# ============================================================
-# 16. ui/HomeScreen.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/HomeScreen.kt"] = r'''package com.gerfrota.fretes.ui
-
+# 16. HomeScreen.kt - COM .toString() EM TODOS OS nf.format()
+A["app/src/main/java/com/gerfrota/fretes/ui/HomeScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -775,7 +631,6 @@ import com.gerfrota.fretes.data.Repository
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -794,14 +649,13 @@ fun HomeScreen(
     var showShareDialog by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var backupando by remember { mutableStateOf(false) }
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Column {
                         Text("GerFrota Fretes", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("💾 Backup local ativo", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
+                        Text("Backup local ativo", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
                     }
                 },
                 actions = {
@@ -810,7 +664,7 @@ fun HomeScreen(
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
-                            text = { Text("💾 Criar backup local") },
+                            text = { Text("Criar backup local") },
                             onClick = {
                                 menuOpen = false
                                 if (fretes.isEmpty()) {
@@ -821,13 +675,13 @@ fun HomeScreen(
                                 scope.launch {
                                     val (sucesso, msg) = LocalBackupManager.criarBackupLocal(context, fretes)
                                     backupando = false
-                                    Toast.makeText(context, if (sucesso) "✅ Backup criado!" else "❌ $msg", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, if (sucesso) "Backup criado!" else msg, Toast.LENGTH_LONG).show()
                                 }
                             },
                             leadingIcon = { Icon(Icons.Default.Save, null) }
                         )
                         DropdownMenuItem(
-                            text = { Text("🚛 Gerenciar Placas") },
+                            text = { Text("Gerenciar Placas") },
                             onClick = {
                                 menuOpen = false
                                 onGerenciarPlacasClick()
@@ -840,7 +694,7 @@ fun HomeScreen(
                             if (fretes.isEmpty()) { Toast.makeText(context, "Nenhum frete", Toast.LENGTH_SHORT).show(); return@IconButton }
                             exportando = true
                             scope.launch {
-                                val r = PdfExporter.exportar(context, fretes, "Relatório de Fretes")
+                                val r = PdfExporter.exportar(context, fretes, "Relatorio de Fretes")
                                 exportando = false
                                 if (r.success && r.uri != null) { pdfUri = r.uri; showShareDialog = true }
                                 else Toast.makeText(context, r.message, Toast.LENGTH_LONG).show()
@@ -874,27 +728,27 @@ fun HomeScreen(
                 Card(modifier = Modifier.weight(1f).clickable { onSaldoClick() },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                     Column(Modifier.padding(12.dp)) {
-                        Text("💰 SALDO", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        Text("SALDO", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
                         Text(nf.format(saldoTotal ?: 0.0).toString(), fontSize = 16.sp, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Text("Por transportadora →", fontSize = 10.sp,
+                        Text("Por transportadora", fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
                     }
                 }
                 Card(modifier = Modifier.weight(1f).clickable { onPlacasClick() },
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                     Column(Modifier.padding(12.dp)) {
-                        Text("🚛 PLACAS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                        Text("PLACAS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
                         Text("Ver fretes", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer)
-                        Text("por placa →", fontSize = 10.sp,
+                        Text("por placa", fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
                     }
                 }
             }
-            Text("  Últimos fretes", fontWeight = FontWeight.Bold,
+            Text("  Ultimos fretes", fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             if (fretes.isEmpty()) {
                 Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
@@ -929,7 +783,6 @@ fun HomeScreen(
             confirmButton = { TextButton(onClick = { showShareDialog = false }) { Text("Fechar") } })
     }
 }
-
 private fun compartilharWhatsApp(ctx: android.content.Context, uri: android.net.Uri) {
     try {
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -938,20 +791,18 @@ private fun compartilharWhatsApp(ctx: android.content.Context, uri: android.net.
         }
         ctx.startActivity(intent)
     } catch (e: Exception) {
-        Toast.makeText(ctx, "WhatsApp não instalado", Toast.LENGTH_SHORT).show()
+        Toast.makeText(ctx, "WhatsApp nao instalado", Toast.LENGTH_SHORT).show()
         compartilharGenerico(ctx, uri)
     }
 }
-
 private fun compartilharGenerico(ctx: android.content.Context, uri: android.net.Uri) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_SUBJECT, "Relatório de Fretes")
+        putExtra(Intent.EXTRA_SUBJECT, "Relatorio de Fretes")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     ctx.startActivity(Intent.createChooser(intent, "Compartilhar via..."))
 }
-
 @Composable
 fun FreteItem(f: FreteEntity, nf: NumberFormat, onEdit: () -> Unit, onDelete: () -> Unit) {
     var showDelete by remember { mutableStateOf(false) }
@@ -961,12 +812,12 @@ fun FreteItem(f: FreteEntity, nf: NumberFormat, onEdit: () -> Unit, onDelete: ()
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(f.transportadora.ifBlank { "Sem transportadora" },
                     fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                Text(nf.format(f.saldoFrete), fontWeight = FontWeight.Bold,
+                Text(nf.format(f.saldoFrete).toString(), fontWeight = FontWeight.Bold,
                     color = if (f.recebido) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
             }
-            Text("${f.origem} → ${f.destino}", fontSize = 13.sp, color = Color.Gray)
+            Text("${f.origem} -> ${f.destino}", fontSize = 13.sp, color = Color.Gray)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${f.data} • ${f.placa}", fontSize = 12.sp, color = Color.Gray)
+                Text("${f.data} - ${f.placa}", fontSize = 12.sp, color = Color.Gray)
                 Row {
                     TextButton(onClick = onEdit) {
                         Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
@@ -978,24 +829,21 @@ fun FreteItem(f: FreteEntity, nf: NumberFormat, onEdit: () -> Unit, onDelete: ()
                     }
                 }
             }
-            if (f.recebido) Text("✅ RECEBIDO", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+            if (f.recebido) Text("RECEBIDO", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }
     }
     if (showDelete) {
         AlertDialog(onDismissRequest = { showDelete = false },
             title = { Text("Excluir frete?") },
-            text = { Text("${f.transportadora} - ${nf.format(f.valorFrete)}") },
+            text = { Text("${f.transportadora} - ${nf.format(f.valorFrete).toString()}") },
             confirmButton = { TextButton(onClick = { showDelete = false; onDelete() }) { Text("Excluir", color = Color.Red) } },
             dismissButton = { TextButton(onClick = { showDelete = false }) { Text("Cancelar") } })
     }
 }
 '''
 
-# ============================================================
-# 17. ui/PlacasScreen.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/PlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
-
+# 17. PlacasScreen.kt
+A["app/src/main/java/com/gerfrota/fretes/ui/PlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1015,14 +863,12 @@ import com.gerfrota.fretes.data.PlacaResumo
 import com.gerfrota.fretes.data.Repository
 import java.text.NumberFormat
 import java.util.Locale
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlacasScreen(repo: Repository, onBack: () -> Unit) {
     val resumo by repo.resumoPorPlaca.collectAsState(initial = emptyList())
     val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
     var placaSelecionada by remember { mutableStateOf<String?>(null) }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -1042,9 +888,9 @@ fun PlacasScreen(repo: Repository, onBack: () -> Unit) {
                 Card(modifier = Modifier.fillMaxWidth().padding(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
                     Column(Modifier.padding(20.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("TOTAL GERAL — TODAS AS PLACAS",
+                        Text("TOTAL GERAL - TODAS AS PLACAS",
                             color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        Text(nf.format(totalGeral), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                        Text(nf.format(totalGeral).toString(), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
                         Text("$fretesTotal fretes cadastrados", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                     }
                 }
@@ -1066,7 +912,6 @@ fun PlacasScreen(repo: Repository, onBack: () -> Unit) {
         }
     }
 }
-
 @Composable
 fun CardPlaca(resumo: PlacaResumo, nf: NumberFormat, onClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onClick() },
@@ -1079,28 +924,27 @@ fun CardPlaca(resumo: PlacaResumo, nf: NumberFormat, onClick: () -> Unit) {
                     Text(resumo.placa, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Text("${resumo.totalFretes} fretes", fontSize = 12.sp, color = Color.Gray)
                 }
-                Text(nf.format(resumo.totalSaldo), fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                Text(nf.format(resumo.totalSaldo).toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp,
                     color = if (resumo.totalSaldo > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
             }
             Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f))
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                InfoItem("Valor Total", nf.format(resumo.totalValor))
-                InfoItem("Adiantamentos", nf.format(resumo.totalAdiantamento))
+                InfoItem("Valor Total", nf.format(resumo.totalValor).toString())
+                InfoItem("Adiantamentos", nf.format(resumo.totalAdiantamento).toString())
             }
             Spacer(Modifier.height(4.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                InfoItem("Já Recebido", nf.format(resumo.totalRecebido), color = MaterialTheme.colorScheme.primary)
-                InfoItem("Saldo Pendente", nf.format(resumo.totalSaldo), color = MaterialTheme.colorScheme.error)
+                InfoItem("Ja Recebido", nf.format(resumo.totalRecebido).toString(), color = MaterialTheme.colorScheme.primary)
+                InfoItem("Saldo Pendente", nf.format(resumo.totalSaldo).toString(), color = MaterialTheme.colorScheme.error)
             }
             Spacer(Modifier.height(8.dp))
-            Text("Toque para ver os fretes →", fontSize = 11.sp,
+            Text("Toque para ver os fretes", fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }
     }
 }
-
 @Composable
 fun InfoItem(label: String, value: String, color: Color = Color.Black) {
     Column {
@@ -1108,7 +952,6 @@ fun InfoItem(label: String, value: String, color: Color = Color.Black) {
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = color)
     }
 }
-
 @Composable
 fun FreteItemPlaca(f: FreteEntity, nf: NumberFormat) {
     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), elevation = CardDefaults.cardElevation(2.dp)) {
@@ -1116,30 +959,27 @@ fun FreteItemPlaca(f: FreteEntity, nf: NumberFormat) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(f.transportadora.ifBlank { "Sem transportadora" }, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("${f.origem} → ${f.destino}", fontSize = 12.sp, color = Color.Gray)
+                    Text("${f.origem} -> ${f.destino}", fontSize = 12.sp, color = Color.Gray)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(nf.format(f.saldoFrete), fontWeight = FontWeight.Bold, fontSize = 14.sp,
+                    Text(nf.format(f.saldoFrete).toString(), fontWeight = FontWeight.Bold, fontSize = 14.sp,
                         color = if (f.recebido) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
                     Text(f.data, fontSize = 11.sp, color = Color.Gray)
                 }
             }
             Spacer(Modifier.height(4.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Valor: ${nf.format(f.valorFrete)}", fontSize = 11.sp, color = Color.Gray)
-                Text("Adiant.: ${nf.format(f.adiantamento)}", fontSize = 11.sp, color = Color.Gray)
-                if (f.recebido) Text("✅ RECEBIDO", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text("Valor: ${nf.format(f.valorFrete).toString()}", fontSize = 11.sp, color = Color.Gray)
+                Text("Adiant.: ${nf.format(f.adiantamento).toString()}", fontSize = 11.sp, color = Color.Gray)
+                if (f.recebido) Text("RECEBIDO", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 '''
 
-# ============================================================
-# 18. ui/GerenciarPlacasScreen.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/GerenciarPlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
-
+# 18. GerenciarPlacasScreen.kt
+A["app/src/main/java/com/gerfrota/fretes/ui/GerenciarPlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1159,18 +999,15 @@ import androidx.compose.ui.unit.sp
 import com.gerfrota.fretes.data.PlacaEntity
 import com.gerfrota.fretes.data.Repository
 import kotlinx.coroutines.launch
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GerenciarPlacasScreen(repo: Repository, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val placas by repo.todasPlacas.collectAsState(initial = emptyList())
-    
     var showAddDialog by remember { mutableStateOf(false) }
     var placaEditando by remember { mutableStateOf<PlacaEntity?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<PlacaEntity?>(null) }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -1221,7 +1058,6 @@ fun GerenciarPlacasScreen(repo: Repository, onBack: () -> Unit) {
             }
         }
     }
-
     if (showAddDialog || placaEditando != null) {
         DialogPlacaForm(
             placaExistente = placaEditando,
@@ -1237,19 +1073,18 @@ fun GerenciarPlacasScreen(repo: Repository, onBack: () -> Unit) {
             }
         )
     }
-
     if (showDeleteConfirm != null) {
         val placa = showDeleteConfirm!!
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
             icon = { Icon(Icons.Default.Warning, null, tint = Color.Red) },
             title = { Text("Excluir placa?") },
-            text = { Text("A placa ${placa.placa} será removida permanentemente.") },
+            text = { Text("A placa ${placa.placa} sera removida permanentemente.") },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
                         repo.deletePlacaByNome(placa.placa)
-                        Toast.makeText(context, "Placa excluída", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Placa excluida", Toast.LENGTH_SHORT).show()
                     }
                     showDeleteConfirm = null
                 }) { Text("Excluir", color = Color.Red) }
@@ -1260,7 +1095,6 @@ fun GerenciarPlacasScreen(repo: Repository, onBack: () -> Unit) {
         )
     }
 }
-
 @Composable
 fun CardPlacaItem(
     placa: PlacaEntity,
@@ -1312,7 +1146,6 @@ fun CardPlacaItem(
         }
     }
 }
-
 @Composable
 fun DialogPlacaForm(
     placaExistente: PlacaEntity?,
@@ -1323,7 +1156,6 @@ fun DialogPlacaForm(
     val scope = rememberCoroutineScope()
     var placaInput by remember { mutableStateOf(placaExistente?.placa ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
-
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (placaExistente == null) "Nova Placa" else "Editar Placa") },
@@ -1356,7 +1188,7 @@ fun DialogPlacaForm(
                 }
                 scope.launch {
                     if (repo.placaExiste(placa) && placaExistente?.placa != placa) {
-                        error = "Esta placa já está cadastrada"
+                        error = "Esta placa ja esta cadastrada"
                         return@launch
                     }
                     repo.insertPlaca(PlacaEntity(placa = placa))
@@ -1373,11 +1205,8 @@ fun DialogPlacaForm(
 }
 '''
 
-# ============================================================
-# 19. ui/FreteFormScreen.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/FreteFormScreen.kt"] = r'''package com.gerfrota.fretes.ui
-
+# 19. FreteFormScreen.kt
+A["app/src/main/java/com/gerfrota/fretes/ui/FreteFormScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import android.app.Activity
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -1393,6 +1222,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -1402,7 +1232,6 @@ import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBack: () -> Unit) {
@@ -1420,7 +1249,6 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
     var recebido by remember { mutableStateOf(freteParaEditar?.recebido ?: false) }
     var voiceTarget by remember { mutableStateOf<String?>(null) }
     var salvando by remember { mutableStateOf(false) }
-
     val voiceLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val matches = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
@@ -1442,7 +1270,6 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
         val intent = VoiceInputHelper.createIntent().apply { putExtra(RecognizerIntent.EXTRA_PROMPT, prompt) }
         voiceLauncher.launch(intent)
     }
-
     Scaffold(topBar = {
         TopAppBar(title = { Text(if (isEdit) "Editar Frete" else "Novo Frete") },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } })
@@ -1499,7 +1326,7 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = recebido, onCheckedChange = { recebido = it })
-                Text("Já Recebido (SIM)")
+                Text("Ja Recebido (SIM)")
             }
             Spacer(Modifier.height(16.dp))
             val valor = valorStr.toDoubleOrNull() ?: 0.0
@@ -1508,7 +1335,7 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text("Saldo do Frete:", fontWeight = FontWeight.Bold)
-                    Text(NumberFormat.getCurrencyInstance(Locale("pt","BR")).format(saldo),
+                    Text(NumberFormat.getCurrencyInstance(Locale("pt","BR")).format(saldo).toString(),
                         fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                 }
             }
@@ -1526,13 +1353,12 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
                     onBack()
                 }
             }, modifier = Modifier.fillMaxWidth().height(56.dp), enabled = !salvando) {
-                Text(if (isEdit) "💾 ATUALIZAR FRETE" else "💾 SALVAR FRETE", fontSize = 16.sp)
+                Text(if (isEdit) "ATUALIZAR FRETE" else "SALVAR FRETE", fontSize = 16.sp)
             }
             Spacer(Modifier.height(24.dp))
         }
     }
 }
-
 @Composable
 fun VoiceField(label: String, value: String, onChange: (String) -> Unit,
     voiceKey: String, voicePrompt: String, askVoice: (String, String) -> Unit,
@@ -1548,11 +1374,8 @@ fun VoiceField(label: String, value: String, onChange: (String) -> Unit,
 }
 '''
 
-# ============================================================
-# 20. ui/SaldoReceberScreen.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/SaldoReceberScreen.kt"] = r'''package com.gerfrota.fretes.ui
-
+# 20. SaldoReceberScreen.kt
+A["app/src/main/java/com/gerfrota/fretes/ui/SaldoReceberScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -1569,7 +1392,6 @@ import androidx.compose.ui.unit.sp
 import com.gerfrota.fretes.data.Repository
 import java.text.NumberFormat
 import java.util.Locale
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SaldoReceberScreen(repo: Repository, onBack: () -> Unit) {
@@ -1585,14 +1407,14 @@ fun SaldoReceberScreen(repo: Repository, onBack: () -> Unit) {
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
                 Column(Modifier.padding(20.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("TOTAL GERAL A RECEBER", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold)
-                    Text(nf.format(total ?: 0.0), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                    Text(nf.format(total ?: 0.0).toString(), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                 }
             }
             Text("  Por Transportadora", fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             if (lista.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("Nenhum saldo pendente 🎉", color = Color.Gray)
+                    Text("Nenhum saldo pendente", color = Color.Gray)
                 }
             } else {
                 LazyColumn(Modifier.padding(horizontal = 16.dp)) {
@@ -1602,7 +1424,7 @@ fun SaldoReceberScreen(repo: Repository, onBack: () -> Unit) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically) {
                                 Text(item.transportadora.ifBlank { "(sem nome)" }, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                                Text(nf.format(item.total), fontWeight = FontWeight.Bold,
+                                Text(nf.format(item.total).toString(), fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.error, fontSize = 18.sp)
                             }
                         }
@@ -1614,15 +1436,11 @@ fun SaldoReceberScreen(repo: Repository, onBack: () -> Unit) {
 }
 '''
 
-# ============================================================
-# 21. ui/VoiceInputHelper.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/VoiceInputHelper.kt"] = r'''package com.gerfrota.fretes.ui
-
+# 21. VoiceInputHelper.kt
+A["app/src/main/java/com/gerfrota/fretes/ui/VoiceInputHelper.kt"] = r'''package com.gerfrota.fretes.ui
 import android.content.Intent
 import android.speech.RecognizerIntent
 import java.util.Locale
-
 object VoiceInputHelper {
     fun createIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -1633,19 +1451,15 @@ object VoiceInputHelper {
     fun parseNumber(text: String): String {
         val cleaned = text.lowercase(Locale("pt","BR"))
             .replace("reais", "").replace("real", "")
-            .replace("vírgula", ",").replace("virgula", ",")
-            .replace("ponto", ".").trim()
+            .replace("virgula", ",").replace("ponto", ".").trim()
         val regex = Regex("[0-9]+([.,][0-9]+)?")
         return regex.find(cleaned)?.value ?: cleaned
     }
 }
 '''
 
-# ============================================================
 # 22. MainActivity.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/MainActivity.kt"] = r'''package com.gerfrota.fretes
-
+A["app/src/main/java/com/gerfrota/fretes/MainActivity.kt"] = r'''package com.gerfrota.fretes
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -1660,14 +1474,12 @@ import com.gerfrota.fretes.data.AppDatabase
 import com.gerfrota.fretes.data.AuthManager
 import com.gerfrota.fretes.data.Repository
 import com.gerfrota.fretes.ui.*
-
 class MainActivity : ComponentActivity() {
-    private val repo by lazy { 
+    private val repo by lazy {
         val db = AppDatabase.get(this)
         Repository(db.freteDao(), db.placaDao())
     }
     private val freteEditTarget = mutableStateOf<Long?>(null)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -1735,10 +1547,8 @@ class MainActivity : ComponentActivity() {
 }
 '''
 
-# ============================================================
-# 23. RECURSOS
-# ============================================================
-ARQUIVOS["app/src/main/res/drawable/ic_truck_logo.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
+# 23-28. Recursos
+A["app/src/main/res/drawable/ic_truck_logo.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
     android:viewportWidth="108" android:viewportHeight="108">
@@ -1754,7 +1564,7 @@ ARQUIVOS["app/src/main/res/drawable/ic_truck_logo.xml"] = r'''<?xml version="1.0
 </vector>
 '''
 
-ARQUIVOS["app/src/main/res/values/colors.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
+A["app/src/main/res/values/colors.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#1976D2</color>
     <color name="primary">#1976D2</color>
@@ -1764,17 +1574,17 @@ ARQUIVOS["app/src/main/res/values/colors.xml"] = r'''<?xml version="1.0" encodin
 </resources>
 '''
 
-ARQUIVOS["app/src/main/res/values/strings.xml"] = r'''<resources>
+A["app/src/main/res/values/strings.xml"] = r'''<resources>
     <string name="app_name">GerFrota Fretes</string>
 </resources>
 '''
 
-ARQUIVOS["app/src/main/res/values/themes.xml"] = r'''<resources>
+A["app/src/main/res/values/themes.xml"] = r'''<resources>
     <style name="Theme.GerFrotaFretes" parent="android:Theme.Material.Light.NoActionBar"/>
 </resources>
 '''
 
-ARQUIVOS["app/src/main/res/xml/file_paths.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
+A["app/src/main/res/xml/file_paths.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <paths>
     <external-path name="external_files" path="."/>
     <external-files-path name="external_files2" path="."/>
@@ -1783,14 +1593,14 @@ ARQUIVOS["app/src/main/res/xml/file_paths.xml"] = r'''<?xml version="1.0" encodi
 </paths>
 '''
 
-ARQUIVOS["app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
+A["app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background"/>
     <foreground android:drawable="@drawable/ic_truck_logo"/>
 </adaptive-icon>
 '''
 
-ARQUIVOS["app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
+A["app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background"/>
     <foreground android:drawable="@drawable/ic_truck_logo"/>
@@ -1798,25 +1608,24 @@ ARQUIVOS["app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"] = r'''<?xml
 '''
 
 # ============================================================
-# MAIN EXECUTION FUNCTION
-# Creates the directory structure and writes all project files
+# FUNÇÃO PRINCIPAL
 # ============================================================
 def criar_projeto():
     print("=" * 60)
     print("  GERADOR DO PROJETO GerFrota Fretes")
-    print("  Versão Final - Sem dependências problemáticas")
+    print("  Versao Final - 100% Completo")
     print("=" * 60)
     print()
     if os.path.exists(PROJETO):
-        resposta = input(f"⚠️  A pasta '{PROJETO}' já existe. Deseja sobrescrever? (s/N): ")
+        resposta = input(f"A pasta '{PROJETO}' ja existe. Deseja sobrescrever? (s/N): ")
         if resposta.lower() != 's':
-            print("❌ Operação cancelada.")
+            print("Operacao cancelada.")
             return
         import shutil
         shutil.rmtree(PROJETO)
-    total = len(ARQUIVOS)
+    total = len(A)
     criado = 0
-    for caminho, conteudo in ARQUIVOS.items():
+    for caminho, conteudo in A.items():
         caminho_completo = os.path.join(PROJETO, caminho)
         diretorio = os.path.dirname(caminho_completo)
         if diretorio:
@@ -1824,28 +1633,27 @@ def criar_projeto():
         with open(caminho_completo, 'w', encoding='utf-8') as f:
             f.write(conteudo.lstrip('\n'))
         criado += 1
-        print(f"  ✅ [{criado}/{total}] {caminho}")
+        print(f"  [{criado}/{total}] {caminho}")
     print()
     print("=" * 60)
-    print(f"  🎉 PROJETO CRIADO COM SUCESSO!")
+    print(f"  PROJETO CRIADO COM SUCESSO!")
     print("=" * 60)
     print()
-    print(f"  📁 Pasta: {os.path.abspath(PROJETO)}")
-    print(f"  📊 Arquivos: {criado}")
+    print(f"  Pasta: {os.path.abspath(PROJETO)}")
+    print(f"  Arquivos: {criado}")
     print()
-    print("  🚀 PRÓXIMOS PASSOS:")
+    print("  PROXIMOS PASSOS:")
     print("  1. Commit e push no GitHub")
-    print("  2. GitHub Actions compilará automaticamente")
+    print("  2. GitHub Actions compilara automaticamente")
     print("  3. Baixe o APK em Actions > Artifacts")
     print("=" * 60)
-
 
 if __name__ == "__main__":
     try:
         criar_projeto()
     except KeyboardInterrupt:
-        print("\n\n❌ Operação cancelada.")
+        print("\n\nOperacao cancelada.")
         sys.exit(1)
     except Exception as e:
-        print(f"\n❌ Erro: {e}")
+        print(f"\nErro: {e}")
         sys.exit(1)
