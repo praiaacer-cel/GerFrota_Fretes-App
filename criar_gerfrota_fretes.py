@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-GERADOR DO PROJETO GerFrota Fretes - VERSÃO COMPLETA COM TELA DE PLACAS
+=============================================================
+  GERADOR DO PROJETO GerFrota Fretes - VERSÃO COMPLETA
+  Com cadastro dinâmico de placas
+=============================================================
 """
 
 import os
@@ -10,21 +13,30 @@ import sys
 PROJETO = "GerFrotaFretesApp"
 ARQUIVOS = {}
 
-# === settings.gradle.kts ===
+# ============================================================
+# 1. settings.gradle.kts
+# ============================================================
 ARQUIVOS["settings.gradle.kts"] = r'''pluginManagement {
-    repositories { google(); mavenCentral(); gradlePluginPortal() }
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories { google(); mavenCentral() 
-    maven {url = uri("https://maven.google.com")}
-  }
+    repositories {
+        google()
+        mavenCentral()
+    }
 }
 rootProject.name = "GerFrotaFretes"
 include(":app")
 '''
 
-# === build.gradle.kts (raiz) ===
+# ============================================================
+# 2. build.gradle.kts (raiz)
+# ============================================================
 ARQUIVOS["build.gradle.kts"] = r'''plugins {
     id("com.android.application") version "8.2.0" apply false
     id("org.jetbrains.kotlin.android") version "1.9.20" apply false
@@ -32,14 +44,18 @@ ARQUIVOS["build.gradle.kts"] = r'''plugins {
 }
 '''
 
-# === gradle.properties ===
+# ============================================================
+# 3. gradle.properties
+# ============================================================
 ARQUIVOS["gradle.properties"] = r'''org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
 android.useAndroidX=true
 kotlin.code.style=official
 android.nonTransitiveRClass=true
 '''
 
-# === app/build.gradle.kts ===
+# ============================================================
+# 4. app/build.gradle.kts
+# ============================================================
 ARQUIVOS["app/build.gradle.kts"] = r'''plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -49,6 +65,7 @@ ARQUIVOS["app/build.gradle.kts"] = r'''plugins {
 android {
     namespace = "com.gerfrota.fretes"
     compileSdk = 34
+
     defaultConfig {
         applicationId = "com.gerfrota.fretes"
         minSdk = 26
@@ -56,6 +73,7 @@ android {
         versionCode = 1
         versionName = "1.0"
     }
+
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.4" }
     compileOptions {
@@ -63,24 +81,22 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     kotlinOptions { jvmTarget = "17" }
-    buildTypes { release { isMinifyEnabled = false } }
+    buildTypes {
+        release { isMinifyEnabled = false }
+    }
 }
 
 dependencies {
-    // AndroidX Core
+    // AndroidX e Compose
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
     implementation("androidx.activity:activity-compose:1.8.2")
-    
-    // Compose
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
-    
-    // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.7")
     
     // Room Database
@@ -92,17 +108,23 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     
-    // ✅ GOOGLE API - VERSÕES COMPROVADAMENTE EXISTENTES
-    implementation("com.google.api-client:google-api-client:1.32.1")
-    implementation("com.google.oauth-client:google-oauth-client:1.32.1")
-    implementation("com.google.http-client:google-http-client:1.40.1")
-    implementation("com.google.http-client:google-http-client-gson:1.40.1")
-    implementation("com.google.apis:google-api-services-drive:v3-rev136-1.25.0")
-    implementation("com.google.code.gson:gson:2.9.0")
+    // Google API - VERSÕES ESTÁVEIS E COMPATÍVEIS
+    implementation("com.google.api-client:google-api-client:2.2.0")
+    implementation("com.google.oauth-client:google-oauth-client:1.34.1")
+    implementation("com.google.http-client:google-http-client:1.43.3")
+    implementation("com.google.http-client:google-http-client-gson:1.43.3")
+    implementation("com.google.apis:google-api-services-drive:v3-rev20230816-2.0.0")
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.19.0")
+    implementation("com.google.code.gson:gson:2.10.1")
+    
+    // Google Play Services
+    implementation("com.google.android.gms:play-services-auth:21.0.0")
 }
 '''
 
-# === AndroidManifest.xml ===
+# ============================================================
+# 5. AndroidManifest.xml
+# ============================================================
 ARQUIVOS["app/src/main/AndroidManifest.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
@@ -133,7 +155,29 @@ ARQUIVOS["app/src/main/AndroidManifest.xml"] = r'''<?xml version="1.0" encoding=
 </manifest>
 '''
 
-# === data/FreteEntity.kt ===
+# ============================================================
+# 6. data/PlacaEntity.kt
+# ============================================================
+ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/PlacaEntity.kt"] = r'''package com.gerfrota.fretes.data
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "placas")
+data class PlacaEntity(
+    @PrimaryKey val placa: String,
+    val ativa: Boolean = true,
+    val dataCadastro: Long = System.currentTimeMillis()
+)
+
+object PlacasPadrao {
+    val lista = listOf("MLH 6C45", "QEW 8G04", "IWU 3D11", "ITL 4F00", "IXL 6H19")
+}
+'''
+
+# ============================================================
+# 7. data/FreteEntity.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/FreteEntity.kt"] = r'''package com.gerfrota.fretes.data
 
 import androidx.room.Entity
@@ -155,10 +199,6 @@ object FormasPagamento {
         "Boleto", "Vale-Frete", "Depósito", "Outros")
 }
 
-object Placas {
-    val lista = listOf("MLH 6C45", "QEW 8G04", "IWU 3D11", "ITL 4F00", "IXL 6H19")
-}
-
 data class PlacaResumo(
     val placa: String, val totalFretes: Int,
     val totalValor: Double, val totalAdiantamento: Double,
@@ -166,7 +206,54 @@ data class PlacaResumo(
 )
 '''
 
-# === data/FreteDao.kt (COM NOVAS QUERIES) ===
+# ============================================================
+# 8. data/PlacaDao.kt
+# ============================================================
+ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/PlacaDao.kt"] = r'''package com.gerfrota.fretes.data
+
+import androidx.room.*
+import kotlinx.coroutines.flow.Flow
+
+@Dao
+interface PlacaDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(placa: PlacaEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(placas: List<PlacaEntity>)
+
+    @Update
+    suspend fun update(placa: PlacaEntity)
+
+    @Delete
+    suspend fun delete(placa: PlacaEntity)
+
+    @Query("DELETE FROM placas WHERE placa = :placa")
+    suspend fun deleteByPlaca(placa: String)
+
+    @Query("SELECT * FROM placas WHERE ativa = 1 ORDER BY dataCadastro DESC")
+    fun getAllAtivas(): Flow<List<PlacaEntity>>
+
+    @Query("SELECT * FROM placas ORDER BY dataCadastro DESC")
+    fun getAll(): Flow<List<PlacaEntity>>
+
+    @Query("SELECT placa FROM placas WHERE ativa = 1 ORDER BY placa ASC")
+    fun getAllPlacasAtivas(): Flow<List<String>>
+
+    @Query("SELECT COUNT(*) FROM placas WHERE placa = :placa")
+    suspend fun countByPlaca(placa: String): Int
+
+    @Query("UPDATE placas SET ativa = 0 WHERE placa = :placa")
+    suspend fun desativar(placa: String)
+
+    @Query("UPDATE placas SET ativa = 1 WHERE placa = :placa")
+    suspend fun ativar(placa: String)
+}
+'''
+
+# ============================================================
+# 9. data/FreteDao.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/FreteDao.kt"] = r'''package com.gerfrota.fretes.data
 
 import androidx.room.*
@@ -174,14 +261,22 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FreteDao {
-    @Insert suspend fun insert(frete: FreteEntity)
-    @Insert suspend fun insertAll(fretes: List<FreteEntity>)
-    @Update suspend fun update(frete: FreteEntity)
-    @Delete suspend fun delete(frete: FreteEntity)
-    @Query("DELETE FROM fretes") suspend fun deleteAll()
-    @Query("SELECT COUNT(*) FROM fretes") suspend fun count(): Int
-    @Query("SELECT * FROM fretes ORDER BY id DESC") fun getAll(): Flow<List<FreteEntity>>
-    @Query("SELECT * FROM fretes WHERE id = :id") suspend fun getById(id: Long): FreteEntity?
+    @Insert
+    suspend fun insert(frete: FreteEntity)
+    @Insert
+    suspend fun insertAll(fretes: List<FreteEntity>)
+    @Update
+    suspend fun update(frete: FreteEntity)
+    @Delete
+    suspend fun delete(frete: FreteEntity)
+    @Query("DELETE FROM fretes")
+    suspend fun deleteAll()
+    @Query("SELECT COUNT(*) FROM fretes")
+    suspend fun count(): Int
+    @Query("SELECT * FROM fretes ORDER BY id DESC")
+    fun getAll(): Flow<List<FreteEntity>>
+    @Query("SELECT * FROM fretes WHERE id = :id")
+    suspend fun getById(id: Long): FreteEntity?
     @Query("SELECT transportadora, SUM(saldoFrete) as total FROM fretes WHERE recebido = 0 GROUP BY transportadora ORDER BY total DESC")
     fun saldoPorTransportadora(): Flow<List<SaldoTransportadora>>
     @Query("SELECT SUM(saldoFrete) FROM fretes WHERE recebido = 0")
@@ -204,40 +299,74 @@ interface FreteDao {
 data class SaldoTransportadora(val transportadora: String, val total: Double)
 '''
 
-# === data/AppDatabase.kt ===
+# ============================================================
+# 10. data/AppDatabase.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/AppDatabase.kt"] = r'''package com.gerfrota.fretes.data
 
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [FreteEntity::class], version = 1, exportSchema = false)
+@Database(entities = [FreteEntity::class, PlacaEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun freteDao(): FreteDao
+    abstract fun placaDao(): PlacaDao
+
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
+
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `placas` (
+                        `placa` TEXT NOT NULL PRIMARY KEY,
+                        `ativa` INTEGER NOT NULL DEFAULT 1,
+                        `dataCadastro` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                
+                // Inserir placas padrão
+                PlacasPadrao.lista.forEach { placa ->
+                    db.execSQL("INSERT OR IGNORE INTO `placas` (placa, ativa, dataCadastro) VALUES ('$placa', 1, ${System.currentTimeMillis()})")
+                }
+            }
+        }
+
         fun get(context: Context): AppDatabase =
             INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext, AppDatabase::class.java, "gerfrota.db"
-                ).build().also { INSTANCE = it }
+                )
+                .addMigrations(MIGRATION_1_2)
+                .build()
+                .also { INSTANCE = it }
             }
     }
 }
 '''
 
-# === data/Repository.kt (COM NOVAS FUNÇÕES) ===
+# ============================================================
+# 11. data/Repository.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/Repository.kt"] = r'''package com.gerfrota.fretes.data
 
 import kotlinx.coroutines.flow.Flow
 
-class Repository(private val dao: FreteDao) {
+class Repository(private val dao: FreteDao, private val placaDao: PlacaDao) {
     val fretes: Flow<List<FreteEntity>> = dao.getAll()
     val saldoPorTransportadora: Flow<List<SaldoTransportadora>> = dao.saldoPorTransportadora()
     val saldoTotal: Flow<Double?> = dao.saldoTotalAReceber()
     val resumoPorPlaca: Flow<List<PlacaResumo>> = dao.resumoPorPlaca()
+    
+    val placasAtivas: Flow<List<PlacaEntity>> = placaDao.getAllAtivas()
+    val placasLista: Flow<List<String>> = placaDao.getAllPlacasAtivas()
+    val todasPlacas: Flow<List<PlacaEntity>> = placaDao.getAll()
 
+    // Fretes
     suspend fun insert(f: FreteEntity) = dao.insert(f)
     suspend fun insertAll(fretes: List<FreteEntity>) = dao.insertAll(fretes)
     suspend fun update(f: FreteEntity) = dao.update(f)
@@ -246,10 +375,22 @@ class Repository(private val dao: FreteDao) {
     suspend fun count(): Int = dao.count()
     suspend fun getById(id: Long): FreteEntity? = dao.getById(id)
     fun fretesPorPlaca(placa: String): Flow<List<FreteEntity>> = dao.getFretesPorPlaca(placa)
+
+    // Placas
+    suspend fun insertPlaca(placa: PlacaEntity) = placaDao.insert(placa)
+    suspend fun insertPlacas(placas: List<PlacaEntity>) = placaDao.insertAll(placas)
+    suspend fun updatePlaca(placa: PlacaEntity) = placaDao.update(placa)
+    suspend fun deletePlaca(placa: PlacaEntity) = placaDao.delete(placa)
+    suspend fun deletePlacaByNome(placa: String) = placaDao.deleteByPlaca(placa)
+    suspend fun placaExiste(placa: String): Boolean = placaDao.countByPlaca(placa) > 0
+    suspend fun desativarPlaca(placa: String) = placaDao.desativar(placa)
+    suspend fun ativarPlaca(placa: String) = placaDao.ativar(placa)
 }
 '''
 
-# === data/AuthManager.kt ===
+# ============================================================
+# 12. data/AuthManager.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/AuthManager.kt"] = r'''package com.gerfrota.fretes.data
 
 import android.content.Context
@@ -292,7 +433,85 @@ object AuthManager {
 enum class LoginResult { SUCCESS, WRONG_EMAIL, WRONG_PASSWORD, NOT_REGISTERED }
 '''
 
-# === data/PdfExporter.kt ===
+# ============================================================
+# 13. data/LocalBackupManager.kt
+# ============================================================
+ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/LocalBackupManager.kt"] = r'''package com.gerfrota.fretes.data
+
+import android.content.Context
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
+
+object LocalBackupManager {
+    
+    suspend fun criarBackupLocal(context: Context, fretes: List<FreteEntity>): Pair<Boolean, String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale("pt", "BR"))
+            val timestamp = sdf.format(Date())
+            val fileName = "gerfrota_backup_$timestamp.json"
+            val backupDir = File(context.filesDir, "backups").apply { if (!exists()) mkdirs() }
+            val backupFile = File(backupDir, fileName)
+            
+            val jsonArray = JSONArray()
+            fretes.forEach { frete ->
+                jsonArray.put(JSONObject().apply {
+                    put("id", frete.id); put("data", frete.data); put("placa", frete.placa)
+                    put("valorFrete", frete.valorFrete); put("adiantamento", frete.adiantamento)
+                    put("formaPgtoAdiant", frete.formaPgtoAdiant); put("saldoFrete", frete.saldoFrete)
+                    put("formaPgtoSaldo", frete.formaPgtoSaldo); put("recebido", frete.recebido)
+                    put("transportadora", frete.transportadora); put("origem", frete.origem)
+                    put("destino", frete.destino); put("syncStatus", frete.syncStatus)
+                })
+            }
+            
+            backupFile.writeText(jsonArray.toString(2))
+            Pair(true, backupFile.absolutePath)
+        }.getOrElse { Pair(false, "Erro ao criar backup local: ${it.message}") }
+    }
+    
+    suspend fun listarBackupsLocais(context: Context): List<File> = withContext(Dispatchers.IO) {
+        val backupDir = File(context.filesDir, "backups")
+        if (backupDir.exists()) {
+            backupDir.listFiles { file -> file.name.endsWith(".json") && file.name.startsWith("gerfrota_backup_") }
+                ?.sortedByDescending { it.lastModified() } ?: emptyList()
+        } else emptyList()
+    }
+    
+    suspend fun restaurarBackupLocal(context: Context, filePath: String): Pair<Boolean, List<FreteEntity>> = withContext(Dispatchers.IO) {
+        runCatching {
+            val file = File(filePath)
+            if (!file.exists()) return@withContext Pair(false, emptyList())
+            
+            val jsonContent = file.readText()
+            val jsonArray = JSONArray(jsonContent)
+            val fretes = mutableListOf<FreteEntity>()
+            
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                fretes.add(FreteEntity(
+                    id = obj.optLong("id", 0), data = obj.optString("data", ""),
+                    placa = obj.optString("placa", ""), valorFrete = obj.optDouble("valorFrete", 0.0),
+                    adiantamento = obj.optDouble("adiantamento", 0.0), formaPgtoAdiant = obj.optString("formaPgtoAdiant", ""),
+                    saldoFrete = obj.optDouble("saldoFrete", 0.0), formaPgtoSaldo = obj.optString("formaPgtoSaldo", ""),
+                    recebido = obj.optBoolean("recebido", false), transportadora = obj.optString("transportadora", ""),
+                    origem = obj.optString("origem", ""), destino = obj.optString("destino", ""),
+                    syncStatus = obj.optInt("syncStatus", 0)
+                ))
+            }
+            Pair(true, fretes)
+        }.getOrElse { Pair(false, emptyList()) }
+    }
+}
+'''
+
+# ============================================================
+# 14. data/PdfExporter.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/PdfExporter.kt"] = r'''package com.gerfrota.fretes.data
 
 import android.content.Context
@@ -380,7 +599,110 @@ object PdfExporter {
 }
 '''
 
-# === ui/LoginScreen.kt ===
+# ============================================================
+# 15. drive/DriveBackupManager.kt
+# ============================================================
+ARQUIVOS["app/src/main/java/com/gerfrota/fretes/drive/DriveBackupManager.kt"] = r'''package com.gerfrota.fretes.drive
+
+import android.accounts.AccountManager
+import android.content.Context
+import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
+import com.google.api.client.http.ByteArrayContent
+import com.google.api.client.http.javanet.NetHttpTransport
+import com.google.api.client.json.gson.GsonFactory
+import com.google.api.services.drive.Drive
+import com.google.api.services.drive.DriveScopes
+import com.google.api.services.drive.model.File
+import com.gerfrota.fretes.data.FreteEntity
+import com.gerfrota.fretes.data.LocalBackupManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.FileInputStream
+
+class DriveBackupManager(private val context: Context) {
+    private fun getGoogleAccount(): String? {
+        val am = AccountManager.get(context)
+        return am.getAccountsByType("com.google").firstOrNull()?.name
+    }
+    private fun buildDrive(accountEmail: String): Drive {
+        val credential = GoogleAccountCredential.usingOAuth2(context, listOf(DriveScopes.DRIVE_FILE))
+            .apply { selectedAccountName = accountEmail }
+        return Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
+            .setApplicationName("GerFrotaFretes").build()
+    }
+    
+    suspend fun backupCompleto(fretes: List<FreteEntity>): BackupCompletoResult = withContext(Dispatchers.IO) {
+        val (sucessoLocal, caminhoArquivo) = LocalBackupManager.criarBackupLocal(context, fretes)
+        if (!sucessoLocal) return@withContext BackupCompletoResult.Error("Falha ao criar backup local: $caminhoArquivo")
+        uploadParaDrive(caminhoArquivo)
+    }
+
+    private suspend fun uploadParaDrive(filePath: String): BackupCompletoResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val accountEmail = getGoogleAccount() ?: return@withContext BackupCompletoResult.Error("Nenhuma conta Google no dispositivo.")
+            val drive = buildDrive(accountEmail)
+            val file = java.io.File(filePath)
+            val fileContent = FileInputStream(file).readBytes()
+            val content = ByteArrayContent.fromString("application/json", fileContent)
+            val metadata = File().apply {
+                name = "gerfrota_backup_${System.currentTimeMillis()}.json"
+                mimeType = "application/json"
+                description = "Backup automático GerFrota Fretes"
+            }
+            val query = "name contains 'gerfrota_backup' and mimeType='application/json' and trashed=false"
+            val existing = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").execute()
+            if (existing.files.isNullOrEmpty()) drive.files().create(metadata, content).setFields("id").execute()
+            else drive.files().update(existing.files[0].id, metadata, content).execute()
+            BackupCompletoResult.Sucesso(caminhoArquivo = filePath, driveAccount = accountEmail, message = "Backup criado localmente e enviado para Drive ($accountEmail)")
+        }.getOrElse { BackupCompletoResult.Error("Erro no upload para Drive: ${it.message}") }
+    }
+
+    suspend fun restaurarDoDrive(): RestoreResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val accountEmail = getGoogleAccount() ?: return@withContext RestoreResult.Error("Nenhuma conta Google no dispositivo.")
+            val drive = buildDrive(accountEmail)
+            val query = "name contains 'gerfrota_backup' and mimeType='application/json' and trashed=false"
+            val files = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").execute()
+            if (files.files.isNullOrEmpty()) return@withContext RestoreResult.Error("Nenhum backup encontrado no Drive.")
+            val fileId = files.files[0].id
+            val inputStream = drive.files().get(fileId).executeAsInputStream()
+            val jsonStr = inputStream.bufferedReader().use { it.readText() }
+            val org.json.JSONArray(jsonStr).let { jsonArray ->
+                val fretes = mutableListOf<FreteEntity>()
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    fretes.add(FreteEntity(
+                        id = obj.optLong("id", 0), data = obj.optString("data", ""),
+                        placa = obj.optString("placa", ""), valorFrete = obj.optDouble("valorFrete", 0.0),
+                        adiantamento = obj.optDouble("adiantamento", 0.0), formaPgtoAdiant = obj.optString("formaPgtoAdiant", ""),
+                        saldoFrete = obj.optDouble("saldoFrete", 0.0), formaPgtoSaldo = obj.optString("formaPgtoSaldo", ""),
+                        recebido = obj.optBoolean("recebido", false), transportadora = obj.optString("transportadora", ""),
+                        origem = obj.optString("origem", ""), destino = obj.optString("destino", ""),
+                        syncStatus = obj.optInt("syncStatus", 0)
+                    ))
+                }
+                RestoreResult.Success(fretes, accountEmail)
+            }
+        }.getOrElse { RestoreResult.Error("Erro ao restaurar: ${it.message}") }
+    }
+
+    fun getDriveAccountEmail(): String? = getGoogleAccount()
+}
+
+sealed class BackupCompletoResult {
+    data class Sucesso(val localPath: String, val driveAccount: String, val message: String) : BackupCompletoResult()
+    data class Error(val message: String) : BackupCompletoResult()
+}
+
+sealed class RestoreResult {
+    data class Success(val fretes: List<FreteEntity>, val account: String) : RestoreResult()
+    data class Error(val message: String) : RestoreResult()
+}
+'''
+
+# ============================================================
+# 16. ui/LoginScreen.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/LoginScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
 import android.widget.Toast
@@ -502,7 +824,7 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
                         if (restoring) return@OutlinedButton
                         restoring = true
                         scope.launch {
-                            when (val result = backupManager.restore()) {
+                            when (val result = backupManager.restaurarDoDrive()) {
                                 is RestoreResult.Success -> {
                                     restoring = false
                                     if (result.fretes.isEmpty()) Toast.makeText(context, "Backup vazio", Toast.LENGTH_SHORT).show()
@@ -569,7 +891,9 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
 }
 '''
 
-# === ui/HomeScreen.kt (COM NOVO CARD DE PLACAS) ===
+# ============================================================
+# 17. ui/HomeScreen.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/HomeScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
 import android.content.Intent
@@ -603,7 +927,8 @@ import java.util.Locale
 fun HomeScreen(
     repo: Repository, userEmail: String, driveAccountEmail: String?,
     onAddClick: () -> Unit, onEditClick: (FreteEntity) -> Unit,
-    onSaldoClick: () -> Unit, onPlacasClick: () -> Unit, onLogout: () -> Unit
+    onSaldoClick: () -> Unit, onPlacasClick: () -> Unit,
+    onGerenciarPlacasClick: () -> Unit, onLogout: () -> Unit
 ) {
     val fretes by repo.fretes.collectAsState(initial = emptyList())
     val saldoTotal by repo.saldoTotal.collectAsState(initial = 0.0)
@@ -637,11 +962,19 @@ fun HomeScreen(
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
+                            text = { Text("🚛 Gerenciar Placas") },
+                            onClick = {
+                                menuOpen = false
+                                onGerenciarPlacasClick()
+                            },
+                            leadingIcon = { Icon(Icons.Default.LocalShipping, null) }
+                        )
+                        DropdownMenuItem(
                             text = { Text("🔄 Restaurar backup do Drive") },
                             onClick = {
                                 menuOpen = false
                                 scope.launch {
-                                    when (val r = backupManager.restore()) {
+                                    when (val r = backupManager.restaurarDoDrive()) {
                                         is RestoreResult.Success -> {
                                             if (r.fretes.isEmpty()) Toast.makeText(context, "Backup vazio", Toast.LENGTH_SHORT).show()
                                             else { fretesRestaurados = r.fretes; showRestoreDialog = true }
@@ -687,7 +1020,6 @@ fun HomeScreen(
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            // 2 CARDS LADO A LADO
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Card(modifier = Modifier.weight(1f).clickable { onSaldoClick() },
@@ -706,9 +1038,9 @@ fun HomeScreen(
                     Column(Modifier.padding(12.dp)) {
                         Text("🚛 PLACAS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
-                        Text("5 placas", fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                        Text("Ver fretes", fontSize = 16.sp, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer)
-                        Text("Ver fretes por placa →", fontSize = 10.sp,
+                        Text("por placa →", fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
                     }
                 }
@@ -859,7 +1191,9 @@ fun FreteItem(f: FreteEntity, nf: NumberFormat, onEdit: () -> Unit, onDelete: ()
 }
 '''
 
-# === ui/PlacasScreen.kt (NOVO) ===
+# ============================================================
+# 18. ui/PlacasScreen.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/PlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
 import androidx.compose.foundation.clickable
@@ -1001,7 +1335,249 @@ fun FreteItemPlaca(f: FreteEntity, nf: NumberFormat) {
 }
 '''
 
-# === ui/FreteFormScreen.kt ===
+# ============================================================
+# 19. ui/GerenciarPlacasScreen.kt
+# ============================================================
+ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/GerenciarPlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
+
+import android.widget.Toast
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.gerfrota.fretes.data.PlacaEntity
+import com.gerfrota.fretes.data.Repository
+import kotlinx.coroutines.launch
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GerenciarPlacasScreen(repo: Repository, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val placas by repo.todasPlacas.collectAsState(initial = emptyList())
+    
+    var showAddDialog by remember { mutableStateOf(false) }
+    var placaEditando by remember { mutableStateOf<PlacaEntity?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf<PlacaEntity?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Gerenciar Placas") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") }
+                },
+                actions = {
+                    IconButton(onClick = { showAddDialog = true }) {
+                        Icon(Icons.Default.Add, "Adicionar placa", tint = MaterialTheme.colorScheme.onPrimary)
+                    }
+                }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showAddDialog = true }) {
+                Icon(Icons.Default.Add, "Nova placa")
+            }
+        }
+    ) { padding ->
+        if (placas.isEmpty()) {
+            Box(
+                modifier = Modifier.padding(padding).fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.LocalShipping, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                    Spacer(Modifier.height(16.dp))
+                    Text("Nenhuma placa cadastrada", color = Color.Gray)
+                    Text("Toque no + para adicionar", color = Color.Gray, fontSize = 12.sp)
+                }
+            }
+        } else {
+            LazyColumn(Modifier.padding(padding).padding(horizontal = 16.dp)) {
+                items(placas) { placa ->
+                    CardPlacaItem(
+                        placa = placa,
+                        onEdit = { placaEditando = placa },
+                        onDelete = { showDeleteConfirm = placa },
+                        onToggle = {
+                            scope.launch {
+                                if (placa.ativa) repo.desativarPlaca(placa.placa)
+                                else repo.ativarPlaca(placa.placa)
+                            }
+                        }
+                    )
+                }
+            }
+        }
+    }
+
+    // Diálogo de adicionar/editar
+    if (showAddDialog || placaEditando != null) {
+        DialogPlacaForm(
+            placaExistente = placaEditando,
+            repo = repo,
+            onDismiss = {
+                showAddDialog = false
+                placaEditando = null
+            },
+            onSuccess = {
+                showAddDialog = false
+                placaEditando = null
+                Toast.makeText(context, "Placa salva!", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    // Confirmação de exclusão
+    if (showDeleteConfirm != null) {
+        val placa = showDeleteConfirm!!
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = null },
+            icon = { Icon(Icons.Default.Warning, null, tint = Color.Red) },
+            title = { Text("Excluir placa?") },
+            text = { Text("A placa ${placa.placa} será removida permanentemente.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        repo.deletePlacaByNome(placa.placa)
+                        Toast.makeText(context, "Placa excluída", Toast.LENGTH_SHORT).show()
+                    }
+                    showDeleteConfirm = null
+                }) { Text("Excluir", color = Color.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancelar") }
+            }
+        )
+    }
+}
+
+@Composable
+fun CardPlacaItem(
+    placa: PlacaEntity,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onToggle: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.LocalShipping,
+                null,
+                tint = if (placa.ativa) MaterialTheme.colorScheme.primary else Color.Gray,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    placa.placa,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = if (placa.ativa) Color.Unspecified else Color.Gray
+                )
+                Text(
+                    if (placa.ativa) "Ativa" else "Inativa",
+                    fontSize = 11.sp,
+                    color = if (placa.ativa) MaterialTheme.colorScheme.primary else Color.Gray
+                )
+            }
+            IconButton(onClick = onToggle) {
+                Icon(
+                    if (placa.ativa) Icons.Default.ToggleOn else Icons.Default.ToggleOff,
+                    null,
+                    tint = if (placa.ativa) MaterialTheme.colorScheme.primary else Color.Gray
+                )
+            }
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.primary)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, null, tint = Color.Red)
+            }
+        }
+    }
+}
+
+@Composable
+fun DialogPlacaForm(
+    placaExistente: PlacaEntity?,
+    repo: Repository,
+    onDismiss: () -> Unit,
+    onSuccess: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var placaInput by remember { mutableStateOf(placaExistente?.placa ?: "") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (placaExistente == null) "Nova Placa" else "Editar Placa") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = placaInput,
+                    onValueChange = {
+                        placaInput = it.uppercase()
+                        error = null
+                    },
+                    label = { Text("Placa (ex: ABC 1D23)") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Characters
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                if (error != null) {
+                    Text(error!!, color = Color.Red, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val placa = placaInput.trim()
+                if (placa.length < 7) {
+                    error = "Placa deve ter pelo menos 7 caracteres"
+                    return@TextButton
+                }
+                scope.launch {
+                    if (repo.placaExiste(placa) && placaExistente?.placa != placa) {
+                        error = "Esta placa já está cadastrada"
+                        return@launch
+                    }
+                    repo.insertPlaca(PlacaEntity(placa = placa))
+                    onSuccess()
+                }
+            }) {
+                Text("Salvar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+        }
+    )
+}
+'''
+
+# ============================================================
+# 20. ui/FreteFormScreen.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/FreteFormScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
 import android.app.Activity
@@ -1080,13 +1656,25 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
             VoiceField("Origem", origem, { origem = it }, "origem", "Fale a cidade de origem", ::askVoice)
             VoiceField("Destino", destino, { destino = it }, "destino", "Fale a cidade de destino", ::askVoice)
             Text("Placa", style = MaterialTheme.typography.labelMedium)
+            val placas by repo.placasLista.collectAsState(initial = emptyList())
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(expanded, onExpandedChange = { expanded = it }) {
-                OutlinedTextField(value = placa, onValueChange = { placa = it },
+                OutlinedTextField(
+                    value = placa, onValueChange = { placa = it },
                     modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }
+                )
                 ExposedDropdownMenu(expanded, onDismissRequest = { expanded = false }) {
-                    Placas.lista.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { placa = p; expanded = false }) }
+                    if (placas.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("Nenhuma placa cadastrada", color = Color.Gray) },
+                            onClick = {}
+                        )
+                    } else {
+                        placas.forEach { p ->
+                            DropdownMenuItem(text = { Text(p) }, onClick = { placa = p; expanded = false })
+                        }
+                    }
                 }
             }
             VoiceField("Valor do Frete (R$)", valorStr, { valorStr = it }, "valor", "Fale o valor", ::askVoice, KeyboardType.Decimal)
@@ -1140,7 +1728,7 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
                     onBack()
                 }
             }, modifier = Modifier.fillMaxWidth().height(56.dp), enabled = !salvando) {
-                Text(if (isEdit) "💾 ATUALIZAR FRETE" else "💾 SALVAR FRETE", fontSize = 16.sp)
+                Text(if (isEdit) "💾 ATUALIZAR FRETE" else " SALVAR FRETE", fontSize = 16.sp)
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -1162,7 +1750,9 @@ fun VoiceField(label: String, value: String, onChange: (String) -> Unit,
 }
 '''
 
-# === ui/SaldoReceberScreen.kt ===
+# ============================================================
+# 21. ui/SaldoReceberScreen.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/SaldoReceberScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
 import androidx.compose.foundation.layout.*
@@ -1226,7 +1816,9 @@ fun SaldoReceberScreen(repo: Repository, onBack: () -> Unit) {
 }
 '''
 
-# === ui/VoiceInputHelper.kt ===
+# ============================================================
+# 22. ui/VoiceInputHelper.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/VoiceInputHelper.kt"] = r'''package com.gerfrota.fretes.ui
 
 import android.content.Intent
@@ -1251,99 +1843,9 @@ object VoiceInputHelper {
 }
 '''
 
-# === drive/DriveBackupManager.kt ===
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/drive/DriveBackupManager.kt"] = r'''package com.gerfrota.fretes.drive
-
-import android.accounts.AccountManager
-import android.content.Context
-import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
-import com.google.api.client.http.ByteArrayContent
-import com.google.api.client.http.javanet.NetHttpTransport
-import com.google.api.client.json.gson.GsonFactory
-import com.google.api.services.drive.Drive
-import com.google.api.services.drive.DriveScopes
-import com.google.api.services.drive.model.File
-import com.gerfrota.fretes.data.FreteEntity
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-
-class DriveBackupManager(private val context: Context) {
-    private fun getGoogleAccount(): String? {
-        val am = AccountManager.get(context)
-        return am.getAccountsByType("com.google").firstOrNull()?.name
-    }
-    private fun buildDrive(accountEmail: String): Drive {
-        val credential = GoogleAccountCredential.usingOAuth2(context, listOf(DriveScopes.DRIVE_FILE))
-            .apply { selectedAccountName = accountEmail }
-        return Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
-            .setApplicationName("GerFrotaFretes").build()
-    }
-    suspend fun backup(fretes: List<FreteEntity>): Pair<Boolean, String> = withContext(Dispatchers.IO) {
-        runCatching {
-            val accountEmail = getGoogleAccount() ?: return@withContext Pair(false, "Nenhuma conta Google no dispositivo.")
-            val drive = buildDrive(accountEmail)
-            val json = JSONArray().apply {
-                fretes.forEach { f ->
-                    put(JSONObject().apply {
-                        put("id", f.id); put("data", f.data); put("placa", f.placa)
-                        put("valorFrete", f.valorFrete); put("adiantamento", f.adiantamento)
-                        put("formaPgtoAdiant", f.formaPgtoAdiant); put("saldoFrete", f.saldoFrete)
-                        put("formaPgtoSaldo", f.formaPgtoSaldo); put("recebido", f.recebido)
-                        put("transportadora", f.transportadora); put("origem", f.origem)
-                        put("destino", f.destino)
-                    })
-                }
-            }.toString()
-            val query = "name='gerfrota_backup.json' and mimeType='application/json' and trashed=false"
-            val existing = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").execute()
-            val metadata = File().apply { name = "gerfrota_backup.json"; mimeType = "application/json" }
-            val content = ByteArrayContent.fromString("application/json", json)
-            if (existing.files.isNullOrEmpty()) drive.files().create(metadata, content).setFields("id").execute()
-            else drive.files().update(existing.files[0].id, metadata, content).execute()
-            Pair(true, "Backup realizado em $accountEmail")
-        }.getOrElse { Pair(false, "Erro no backup: ${it.message}") }
-    }
-    suspend fun restore(): RestoreResult = withContext(Dispatchers.IO) {
-        runCatching {
-            val accountEmail = getGoogleAccount() ?: return@withContext RestoreResult.Error("Nenhuma conta Google no dispositivo.")
-            val drive = buildDrive(accountEmail)
-            val query = "name='gerfrota_backup.json' and mimeType='application/json' and trashed=false"
-            val files = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").execute()
-            if (files.files.isNullOrEmpty()) return@withContext RestoreResult.Error("Nenhum backup encontrado no Drive.")
-            val fileId = files.files[0].id
-            val inputStream = drive.files().get(fileId).executeAsInputStream()
-            val reader = BufferedReader(InputStreamReader(inputStream, "UTF-8"))
-            val jsonStr = reader.use { it.readText() }
-            val jsonArray = JSONArray(jsonStr)
-            val fretes = mutableListOf<FreteEntity>()
-            for (i in 0 until jsonArray.length()) {
-                val obj = jsonArray.getJSONObject(i)
-                fretes.add(FreteEntity(
-                    id = 0, data = obj.optString("data", ""), placa = obj.optString("placa", ""),
-                    valorFrete = obj.optDouble("valorFrete", 0.0), adiantamento = obj.optDouble("adiantamento", 0.0),
-                    formaPgtoAdiant = obj.optString("formaPgtoAdiant", ""), saldoFrete = obj.optDouble("saldoFrete", 0.0),
-                    formaPgtoSaldo = obj.optString("formaPgtoSaldo", ""), recebido = obj.optBoolean("recebido", false),
-                    transportadora = obj.optString("transportadora", ""), origem = obj.optString("origem", ""),
-                    destino = obj.optString("destino", "")
-                ))
-            }
-            RestoreResult.Success(fretes, accountEmail)
-        }.getOrElse { RestoreResult.Error("Erro ao restaurar: ${it.message}") }
-    }
-    fun getDriveAccountEmail(): String? = getGoogleAccount()
-}
-
-sealed class RestoreResult {
-    data class Success(val fretes: List<FreteEntity>, val account: String) : RestoreResult()
-    data class Error(val message: String) : RestoreResult()
-}
-'''
-
-# === MainActivity.kt (COM ROTA DE PLACAS) ===
+# ============================================================
+# 23. MainActivity.kt
+# ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/MainActivity.kt"] = r'''package com.gerfrota.fretes
 
 import android.os.Bundle
@@ -1364,7 +1866,10 @@ import com.gerfrota.fretes.ui.*
 import kotlinx.coroutines.flow.firstOrNull
 
 class MainActivity : ComponentActivity() {
-    private val repo by lazy { Repository(AppDatabase.get(this).freteDao()) }
+    private val repo by lazy { 
+        val db = AppDatabase.get(this)
+        Repository(db.freteDao(), db.placaDao())
+    }
     private val backup by lazy { DriveBackupManager(this) }
     private val freteEditTarget = mutableStateOf<Long?>(null)
 
@@ -1395,6 +1900,7 @@ class MainActivity : ComponentActivity() {
                             onEditClick = { f -> freteEditTarget.value = f.id; nav.navigate("form?edit=1") },
                             onSaldoClick = { nav.navigate("saldo") },
                             onPlacasClick = { nav.navigate("placas") },
+                            onGerenciarPlacasClick = { nav.navigate("gerenciar_placas") },
                             onLogout = {
                                 AuthManager.logout(this@MainActivity)
                                 loggedEmail = null
@@ -1404,11 +1910,20 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(loggedEmail) {
                             if (loggedEmail != null) {
                                 val fretes = repo.fretes.firstOrNull() ?: emptyList()
-                                backup.backup(fretes)
+                                val result = backup.backupCompleto(fretes)
+                                when (result) {
+                                    is com.gerfrota.fretes.drive.BackupCompletoResult.Sucesso -> {
+                                        android.util.Log.i("Backup", result.message)
+                                    }
+                                    is com.gerfrota.fretes.drive.BackupCompletoResult.Error -> {
+                                        android.util.Log.e("Backup", result.message)
+                                    }
+                                }
                             }
                         }
                     }
                     composable("placas") { PlacasScreen(repo) { nav.popBackStack() } }
+                    composable("gerenciar_placas") { GerenciarPlacasScreen(repo) { nav.popBackStack() } }
                     composable("saldo") { SaldoReceberScreen(repo) { nav.popBackStack() } }
                     composable("form?edit={edit}", arguments = listOf(navArgument("edit") {
                         type = NavType.StringType; defaultValue = "0"
@@ -1440,7 +1955,9 @@ class MainActivity : ComponentActivity() {
 }
 '''
 
-# === RECURSOS ===
+# ============================================================
+# 24. RECURSOS
+# ============================================================
 ARQUIVOS["app/src/main/res/drawable/ic_truck_logo.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp" android:height="108dp"
@@ -1500,36 +2017,13 @@ ARQUIVOS["app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"] = r'''<?xml
 </adaptive-icon>
 '''
 
-# === README.md ===
-ARQUIVOS["README.md"] = r'''# 🚛 GerFrota Fretes
-
-App Android para controle de fretes com backup no Google Drive.
-
-## Funcionalidades
-- Login local (e-mail + senha)
-- Backup/restauração no Google Drive
-- Entrada por voz (microfone)
-- Edição de fretes
-- Exportação PDF + Compartilhamento (WhatsApp/E-mail)
-- Saldo a receber por transportadora
-- **NOVO: Fretes agrupados por placa** (5 placas)
-- 10 formas de pagamento
-
-## Placas: MLH 6C45, QEW 8G04, IWU 3D11, ITL 4F00, IXL 6H19
-
-## Como compilar
-1. Abra no Android Studio
-2. Configure Google Drive API (veja console.cloud.google.com)
-3. Build → Build APK
-'''
-
 # ============================================================
 # FUNÇÃO PRINCIPAL
 # ============================================================
 def criar_projeto():
     print("=" * 60)
     print("  GERADOR DO PROJETO GerFrota Fretes")
-    print("  Versão com Tela de Placas")
+    print("  Versão Completa com Cadastro Dinâmico de Placas")
     print("=" * 60)
     print()
     if os.path.exists(PROJETO):
