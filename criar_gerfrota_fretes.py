@@ -602,9 +602,7 @@ object PdfExporter {
 '''
 
 # 15. DriveBackupManager.kt
-# 15. DriveBackupManager.kt
 A["app/src/main/java/com/gerfrota/fretes/drive/DriveBackupManager.kt"] = r'''package com.gerfrota.fretes.drive
-
 import android.accounts.AccountManager
 import android.content.Context
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
@@ -664,13 +662,19 @@ class DriveBackupManager(private val context: Context) {
             val accountEmail = getGoogleAccount() ?: return@withContext BackupDriveResult.Error("Nenhuma conta Google no dispositivo.")
             val drive = buildDrive(accountEmail)
             val query = "name contains 'gerfrota_backup' and mimeType='application/json' and trashed=false"
-            val files = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").orderBy("createdTime desc").execute()
+            
+            // ✅ CORREÇÃO: O método correto da API é setOrderBy(), não orderBy()
+            val files = drive.files().list()
+                .setQ(query)
+                .setSpaces("drive")
+                .setFields("files(id, name)")
+                .setOrderBy("createdTime desc")
+                .execute()
             
             if (files.files.isNullOrEmpty()) return@withContext BackupDriveResult.Error("Nenhum backup encontrado no Drive.")
             
             val fileId = files.files[0].id
             
-            // ✅ CORREÇÃO: O método correto da API do Google Drive é executeMediaAsInputStream()
             val inputStream = drive.files().get(fileId).executeMediaAsInputStream()
             
             val backupDir = context.filesDir.resolve("backups").apply { if (!exists()) mkdirs() }
