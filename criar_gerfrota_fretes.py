@@ -603,10 +603,11 @@ object PdfExporter {
 
 # 15. DriveBackupManager.kt
 A["app/src/main/java/com/gerfrota/fretes/drive/DriveBackupManager.kt"] = r'''package com.gerfrota.fretes.drive
+
 import android.accounts.AccountManager
 import android.content.Context
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
-import com.google.api.client.http.ByteArrayContent
+import com.google.api.client.http.InputStreamContent
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.drive.Drive
@@ -615,44 +616,71 @@ import com.google.api.services.drive.model.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.FileInputStream
+
 class DriveBackupManager(private val context: Context) {
     private fun getGoogleAccount(): String? {
         val am = AccountManager.get(context)
         return am.getAccountsByType("com.google").firstOrNull()?.name
     }
+
     private fun buildDrive(accountEmail: String): Drive {
-        val credential = GoogleAccountCredential.usingOAuth2(context, listOf(DriveScopes.DRIVE_FILE)).apply { selectedAccountName = accountEmail }
-        return Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential).setApplicationName("GerFrotaFretes").build()
+        val credential = GoogleAccountCredential.usingOAuth2(context, listOf(DriveScopes.DRIVE_FILE))
+            .apply { selectedAccountName = accountEmail }
+        return Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
+            .setApplicationName("GerFrotaFretes").build()
     }
+
     suspend fun uploadBackupParaDrive(backupPath: String): BackupDriveResult = withContext(Dispatchers.IO) {
         runCatching {
             val accountEmail = getGoogleAccount() ?: return@withContext BackupDriveResult.Error("Nenhuma conta Google no dispositivo.")
             val drive = buildDrive(accountEmail)
             val backupFile = java.io.File(backupPath)
-            val content = ByteArrayContent.fromString("application/json", FileInputStream(backupFile).readBytes())
-            val metadata = File().apply { name = "gerfrota_backup_${System.currentTimeMillis()}.json"; mimeType = "application/json" }
+            
+            // CORREÇÃO: Usar InputStreamContent, que é o padrão correto da API do Google Drive para arquivos
+            val fileInputStream = FileInputStream(backupFile)
+            val mediaContent = InputStreamContent("application/json", fileInputStream)
+            
+            val metadata = File().apply { 
+                name = "gerfrota_backup_${System.currentTimeMillis()}.json"
+                mimeType = "application/json" 
+            }
+            
             val query = "name contains 'gerfrota_backup' and mimeType='application/json' and trashed=false"
             val existing = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").execute()
-            if (existing.files.isNullOrEmpty()) drive.files().create(metadata, content).setFields("id").execute()
-            else drive.files().update(existing.files[0].id, metadata, content).execute()
+            
+            if (existing.files.isNullOrEmpty()) {
+                drive.files().create(metadata, mediaContent).setFields("id").execute()
+            } else {
+                val fileId = existing.files[0].id
+                drive.files().update(fileId, metadata, mediaContent).execute()
+            }
+            fileInputStream.close()
             BackupDriveResult.Sucesso("Backup enviado para Drive ($accountEmail)")
         }.getOrElse { BackupDriveResult.Error("Erro no upload: ${it.message}") }
     }
+
     suspend fun downloadBackupDoDrive(): BackupDriveResult = withContext(Dispatchers.IO) {
         runCatching {
             val accountEmail = getGoogleAccount() ?: return@withContext BackupDriveResult.Error("Nenhuma conta Google no dispositivo.")
             val drive = buildDrive(accountEmail)
             val query = "name contains 'gerfrota_backup' and mimeType='application/json' and trashed=false"
             val files = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").orderBy("createdTime desc").execute()
+            
             if (files.files.isNullOrEmpty()) return@withContext BackupDriveResult.Error("Nenhum backup encontrado no Drive.")
-            val inputStream = drive.files().get(files.files[0].id).executeAsInputStream()
+            
+            val fileId = files.files[0].id
+            val inputStream = drive.files().get(fileId).executeAsInputStream()
             val backupDir = context.filesDir.resolve("backups").apply { if (!exists()) mkdirs() }
             val backupFile = backupDir.resolve("gerfrota_backup_downloaded.json")
+            
             backupFile.outputStream().use { it.write(inputStream.readBytes()) }
+            inputStream.close()
+            
             BackupDriveResult.Sucesso("Backup baixado do Drive: ${backupFile.absolutePath}")
         }.getOrElse { BackupDriveResult.Error("Erro no download: ${it.message}") }
     }
 }
+
 sealed class BackupDriveResult {
     data class Sucesso(val message: String) : BackupDriveResult()
     data class Error(val message: String) : BackupDriveResult()
