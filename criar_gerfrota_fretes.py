@@ -1097,37 +1097,55 @@ fun BackupScreen(repo: Repository, onBack: () -> Unit) {
             
             StepCard(numero = 1, titulo = "Gerar Arquivo de Backup", descricao = "Cria arquivo JSON com todos os fretes", icone = Icons.Default.Save, ativo = etapa == 1,
                 acao = { processando = true; scope.launch {
-                    val (sucesso, path) = LocalBackupManager.criarBackupLocal(context, fretes); processando = false
-                    if (sucesso) { backupPath = path; etapa = 2; mensagem = "Backup gerado com sucesso" } else { mensagem = "Erro ao gerar backup" }
+                    val (sucesso, path) = LocalBackupManager.criarBackupLocal(context, fretes)
+                    processando = false
+                    if (sucesso) { 
+                        backupPath = path
+                        etapa = 2
+                        mensagem = "Backup gerado com sucesso" 
+                    } else { 
+                        mensagem = "Erro ao gerar backup" 
+                    }
                     Toast.makeText(context, if (sucesso) "Backup gerado!" else "Erro", Toast.LENGTH_SHORT).show()
                 }}, processando = processando && etapa == 1)
                 
             Spacer(Modifier.height(16.dp))
             
             StepCard(numero = 2, titulo = "Upload para Google Drive", descricao = "Envia backup para sua conta Google Drive", icone = Icons.Default.CloudUpload, ativo = etapa == 2,
-                habilitado = backupPath != null, acao = { if (backupPath == null) return@StepCard; processando = true; scope.launch {
-                    val resultado = driveManager.uploadBackupParaDrive(backupPath!!); processando = false
-                    // CORREÇÃO: Extração explícita da propriedade 'message'
-                    val msg = when (resultado) {
-                        is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso -> { etapa = 3; resultado.message }
-                        is com.gerfrota.fretes.drive.BackupDriveResult.Error -> resultado.message
+                habilitado = backupPath != null, acao = { 
+                    if (backupPath == null) return@StepCard
+                    processando = true
+                    scope.launch {
+                        val resultado = driveManager.uploadBackupParaDrive(backupPath!!)
+                        processando = false
+                        
+                        // CORREÇÃO: Uso explícito de if/else para garantir o smart-cast e acesso à propriedade .message
+                        if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso) {
+                            etapa = 3
+                            mensagem = resultado.message
+                            Toast.makeText(context, "Upload concluído!", Toast.LENGTH_LONG).show()
+                        } else if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Error) {
+                            mensagem = resultado.message
+                            Toast.makeText(context, resultado.message, Toast.LENGTH_LONG).show()
+                        }
                     }
-                    mensagem = msg
-                    Toast.makeText(context, if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso) "Upload concluído!" else resultado.message, Toast.LENGTH_LONG).show()
-                }}, processando = processando && etapa == 2)
+                }, processando = processando && etapa == 2)
                 
             Spacer(Modifier.height(16.dp))
             
             StepCard(numero = 3, titulo = "Download do Google Drive", descricao = "Baixa backup mais recente do Drive", icone = Icons.Default.CloudDownload, ativo = etapa == 3,
                 acao = { processando = true; scope.launch {
-                    val resultado = driveManager.downloadBackupDoDrive(); processando = false
-                    // CORREÇÃO: Extração explícita da propriedade 'message'
-                    val msg = when (resultado) {
-                        is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso -> resultado.message
-                        is com.gerfrota.fretes.drive.BackupDriveResult.Error -> resultado.message
+                    val resultado = driveManager.downloadBackupDoDrive()
+                    processando = false
+                    
+                    // CORREÇÃO: Uso explícito de if/else para garantir o smart-cast e acesso à propriedade .message
+                    if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso) {
+                        mensagem = resultado.message
+                        Toast.makeText(context, "Download concluído!", Toast.LENGTH_LONG).show()
+                    } else if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Error) {
+                        mensagem = resultado.message
+                        Toast.makeText(context, resultado.message, Toast.LENGTH_LONG).show()
                     }
-                    mensagem = msg
-                    Toast.makeText(context, if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso) "Download concluído!" else resultado.message, Toast.LENGTH_LONG).show()
                 }}, processando = processando && etapa == 3)
                 
             Spacer(Modifier.height(24.dp))
