@@ -602,6 +602,7 @@ object PdfExporter {
 '''
 
 # 15. DriveBackupManager.kt
+# 15. DriveBackupManager.kt
 A["app/src/main/java/com/gerfrota/fretes/drive/DriveBackupManager.kt"] = r'''package com.gerfrota.fretes.drive
 
 import android.accounts.AccountManager
@@ -636,7 +637,6 @@ class DriveBackupManager(private val context: Context) {
             val drive = buildDrive(accountEmail)
             val backupFile = java.io.File(backupPath)
             
-            // CORREÇÃO: Usar InputStreamContent, que é o padrão correto da API do Google Drive para arquivos
             val fileInputStream = FileInputStream(backupFile)
             val mediaContent = InputStreamContent("application/json", fileInputStream)
             
@@ -669,7 +669,10 @@ class DriveBackupManager(private val context: Context) {
             if (files.files.isNullOrEmpty()) return@withContext BackupDriveResult.Error("Nenhum backup encontrado no Drive.")
             
             val fileId = files.files[0].id
-            val inputStream = drive.files().get(fileId).executeAsInputStream()
+            
+            // ✅ CORREÇÃO: O método correto da API do Google Drive é executeMediaAsInputStream()
+            val inputStream = drive.files().get(fileId).executeMediaAsInputStream()
+            
             val backupDir = context.filesDir.resolve("backups").apply { if (!exists()) mkdirs() }
             val backupFile = backupDir.resolve("gerfrota_backup_downloaded.json")
             
