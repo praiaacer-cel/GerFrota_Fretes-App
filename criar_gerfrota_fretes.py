@@ -21,13 +21,21 @@ import sys
 PROJETO = "GerFrotaFretesApp"
 A = {}
 
-# 1. settings.gradle.kts
+# 1. settings.gradle.kts (COM REPOSITÓRIO MAVEN EXPLÍCITO PARA GARANTIR RESOLUÇÃO)
 A["settings.gradle.kts"] = r'''pluginManagement {
-    repositories { google(); mavenCentral(); gradlePluginPortal() }
+    repositories { 
+        google()
+        mavenCentral()
+        gradlePluginPortal() 
+    }
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories { google(); mavenCentral() }
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("https://repo1.maven.org/maven2/") } // Fallback explícito para GitHub Actions
+    }
 }
 rootProject.name = "GerFrotaFretes"
 include(":app")
@@ -48,7 +56,7 @@ kotlin.code.style=official
 android.nonTransitiveRClass=true
 '''
 
-# 4. app/build.gradle.kts
+# 4. app/build.gradle.kts (COM VERSÃO ESTÁVEL DA API DO DRIVE)
 A["app/build.gradle.kts"] = r'''plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -89,8 +97,14 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-    implementation("com.google.api-client:google-api-client-android:2.2.0") { exclude(group = "org.apache.httpcomponents") }
-    implementation("com.google.apis:google-api-services-drive:v3-rev20230816-2.0.0") { exclude(group = "org.apache.httpcomponents") }
+    
+    // Google Drive API - Versão estável e comprovada no Maven Central
+    implementation("com.google.api-client:google-api-client-android:2.2.0") { 
+        exclude(group = "org.apache.httpcomponents") 
+    }
+    implementation("com.google.apis:google-api-services-drive:v3-rev20220815-2.0.0") { 
+        exclude(group = "org.apache.httpcomponents") 
+    }
     implementation("com.google.auth:google-auth-library-oauth2-http:1.19.0")
     implementation("com.google.android.gms:play-services-auth:21.0.0")
 }
@@ -128,7 +142,7 @@ data class PlacaEntity(@PrimaryKey val placa: String, val ativa: Boolean = true,
 object PlacasPadrao { val lista = listOf("MLH 6C45", "QEW 8G04", "IWU 3D11", "ITL 4F00", "IXL 6H19") }
 '''
 
-# 7. FreteEntity.kt (COM NOVAS FORMAS DE PAGAMENTO)
+# 7. FreteEntity.kt
 A["app/src/main/java/com/gerfrota/fretes/data/FreteEntity.kt"] = r'''package com.gerfrota.fretes.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
@@ -166,7 +180,7 @@ interface PlacaDao {
 }
 '''
 
-# 9. FreteDao.kt (COM NOVAS QUERIES DE FORMA DE PAGAMENTO)
+# 9. FreteDao.kt
 A["app/src/main/java/com/gerfrota/fretes/data/FreteDao.kt"] = r'''package com.gerfrota.fretes.data
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
@@ -367,7 +381,7 @@ object LocalBackupManager {
 }
 '''
 
-# 14. PdfExporter.kt (COM NOVOS RELATÓRIOS POR FORMA)
+# 14. PdfExporter.kt
 A["app/src/main/java/com/gerfrota/fretes/data/PdfExporter.kt"] = r'''package com.gerfrota.fretes.data
 import android.content.Context
 import android.graphics.Color
