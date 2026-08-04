@@ -343,6 +343,7 @@ enum class LoginResult { SUCCESS, WRONG_EMAIL, WRONG_PASSWORD, NOT_REGISTERED }
 
 # 13. LocalBackupManager.kt
 A["app/src/main/java/com/gerfrota/fretes/data/LocalBackupManager.kt"] = r'''package com.gerfrota.fretes.data
+
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -351,7 +352,9 @@ import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+
 object LocalBackupManager {
+    
     suspend fun criarBackupLocal(context: Context, fretes: List<FreteEntity>): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         runCatching {
             val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale("pt", "BR"))
@@ -373,6 +376,7 @@ object LocalBackupManager {
             Pair(true, backupFile.absolutePath)
         }.getOrElse { Pair(false, "Erro ao criar backup local: ${it.message}") }
     }
+    
     suspend fun listarBackupsLocais(context: Context): List<File> = withContext(Dispatchers.IO) {
         val backupDir = File(context.filesDir, "backups")
         if (backupDir.exists()) {
@@ -380,26 +384,37 @@ object LocalBackupManager {
                 ?.sortedByDescending { it.lastModified() } ?: emptyList()
         } else emptyList()
     }
-    suspend fun restaurarBackupLocal(context: Context, filePath: String): Pair<Boolean, List<FreteEntity>> = withContext(Dispatchers.IO) {
+    
+    // CORREÇÃO AQUI: Retorno explicitamente definido como MutableList<FreteEntity>
+    suspend fun restaurarBackupLocal(context: Context, filePath: String): Pair<Boolean, MutableList<FreteEntity>> = withContext(Dispatchers.IO) {
         runCatching {
             val file = File(filePath)
-            if (!file.exists()) return@withContext Pair(false, emptyList())
+            if (!file.exists()) return@withContext Pair(false, mutableListOf())
+            
             val jsonArray = JSONArray(file.readText())
+            // CORREÇÃO AQUI: Declaração explícita da lista mutável
             val fretes = mutableListOf<FreteEntity>()
+            
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
                 fretes.add(FreteEntity(
-                    id = obj.optLong("id", 0), data = obj.optString("data", ""),
-                    placa = obj.optString("placa", ""), valorFrete = obj.optDouble("valorFrete", 0.0),
-                    adiantamento = obj.optDouble("adiantamento", 0.0), formaPgtoAdiant = obj.optString("formaPgtoAdiant", ""),
-                    saldoFrete = obj.optDouble("saldoFrete", 0.0), formaPgtoSaldo = obj.optString("formaPgtoSaldo", ""),
-                    recebido = obj.optBoolean("recebido", false), transportadora = obj.optString("transportadora", ""),
-                    origem = obj.optString("origem", ""), destino = obj.optString("destino", ""),
+                    id = obj.optLong("id", 0),
+                    data = obj.optString("data", ""),
+                    placa = obj.optString("placa", ""),
+                    valorFrete = obj.optDouble("valorFrete", 0.0),
+                    adiantamento = obj.optDouble("adiantamento", 0.0),
+                    formaPgtoAdiant = obj.optString("formaPgtoAdiant", ""),
+                    saldoFrete = obj.optDouble("saldoFrete", 0.0),
+                    formaPgtoSaldo = obj.optString("formaPgtoSaldo", ""),
+                    recebido = obj.optBoolean("recebido", false),
+                    transportadora = obj.optString("transportadora", ""),
+                    origem = obj.optString("origem", ""),
+                    destino = obj.optString("destino", ""),
                     syncStatus = obj.optInt("syncStatus", 0)
                 ))
             }
             Pair(true, fretes)
-        }.getOrElse { Pair(false, emptyList()) }
+        }.getOrElse { Pair(false, mutableListOf()) }
     }
 }
 '''
@@ -1390,11 +1405,17 @@ object VoiceInputHelper {
 
 # 22. MainActivity.kt
 A["app/src/main/java/com/gerfrota/fretes/MainActivity.kt"] = r'''package com.gerfrota.fretes
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -1459,7 +1480,6 @@ class MainActivity : ComponentActivity() {
                         var frete by remember { mutableStateOf<com.gerfrota.fretes.data.FreteEntity?>(null) }
                         var loaded by remember { mutableStateOf(!isEdit) }
                         
-                        // CORREÇÃO AQUI: Usar repo.getById em vez de repo.fretes.value
                         LaunchedEffect(targetId, isEdit) {
                             if (isEdit && targetId != null) {
                                 frete = repo.getById(targetId)
@@ -1468,10 +1488,12 @@ class MainActivity : ComponentActivity() {
                         }
                         
                         if (!loaded) {
-                            androidx.compose.foundation.layout.Box(
-                                modifier = androidx.compose.ui.Modifier.fillMaxSize(),
-                                contentAlignment = androidx.compose.ui.Alignment.Center
-                            ) { androidx.compose.material3.CircularProgressIndicator() }
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) { 
+                                CircularProgressIndicator() 
+                            }
                         } else {
                             FreteFormScreen(repo = repo, freteParaEditar = if (isEdit) frete else null,
                                 onBack = { freteEditTarget.value = null; nav.popBackStack() })
