@@ -2,32 +2,16 @@
 # -*- coding: utf-8 -*-
 """
 =============================================================
-  GERADOR DO PROJETO GerFrota Fretes - VERSÃO FINAL
+  GERADOR DO PROJETO GerFrota Fretes v2.1 - VERSÃO FINAL
 =============================================================
-  App Android para gestão de fretes e transportes
-  
-  FUNCIONALIDADES:
-  • Cadastro de fretes com 5 placas pré-configuradas:
-    - MLH 6C45, QEW 8G04, IWU 3D11, ITL 4F00, IXL 6H19
-  • Controle de valores, adiantamentos e saldos
-  • 10 formas de pagamento
-  • Backup local em JSON
-  • Exportação para PDF
-  • Compartilhamento via WhatsApp/E-mail
-  • Entrada por voz
-  • Cadastro dinâmico de placas
-  • Visualização por transportadora
-  
-  COLUNAS DA PLANILHA:
-  • DATA | VALOR DO FRETE | ADIANTAMENTO
-  • FORMA PGTO ADIANT. | SALDO DO FRETE
-  • FORMA PGTO SALDO | RECEBIDO N/S
-  • TRANSPORTADORA | ORIGEM | DESTINO
+  App Android para gestão de fretes com:
+  • 9 Formas de Pagamento específicas (PIX PF, VITALI, COOP, etc.)
+  • Relatórios de Adiantamento e Saldo por Forma de Pagamento
+  • Sistema de Backup em 3 etapas (Local, Upload Drive, Download Drive)
+  • Filtros por transportadora e placa
+  • Entrada por voz e Exportação PDF
   
   USO: python3 criar_gerfrota_fretes.py
-  REQUISITOS: Python 3.6+, JDK 17
-  AUTOR: GerFrota Development Team
-  VERSÃO: 1.0.0
 =============================================================
 """
 
@@ -77,8 +61,8 @@ android {
         applicationId = "com.gerfrota.fretes"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.1"
     }
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.4" }
@@ -105,6 +89,10 @@ dependencies {
     ksp("androidx.room:room-compiler:2.6.1")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
+    implementation("com.google.api-client:google-api-client-android:2.2.0") { exclude(group = "org.apache.httpcomponents") }
+    implementation("com.google.apis:google-api-services-drive:v3-rev20230816-2.0.0") { exclude(group = "org.apache.httpcomponents") }
+    implementation("com.google.auth:google-auth-library-oauth2-http:1.19.0")
+    implementation("com.google.android.gms:play-services-auth:21.0.0")
 }
 '''
 
@@ -113,25 +101,18 @@ A["app/src/main/AndroidManifest.xml"] = r'''<?xml version="1.0" encoding="utf-8"
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.GET_ACCOUNTS"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
-    <application
-        android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.GerFrotaFretes">
+    <application android:allowBackup="true" android:icon="@mipmap/ic_launcher" android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round" android:supportsRtl="true" android:theme="@style/Theme.GerFrotaFretes">
         <activity android:name=".MainActivity" android:exported="true" android:theme="@style/Theme.GerFrotaFretes">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        <provider
-            android:name="androidx.core.content.FileProvider"
-            android:authorities="${applicationId}.fileprovider"
-            android:exported="false"
-            android:grantUriPermissions="true">
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider"
+            android:exported="false" android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths"/>
         </provider>
     </application>
@@ -143,51 +124,26 @@ A["app/src/main/java/com/gerfrota/fretes/data/PlacaEntity.kt"] = r'''package com
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 @Entity(tableName = "placas")
-data class PlacaEntity(
-    @PrimaryKey val placa: String,
-    val ativa: Boolean = true,
-    val dataCadastro: Long = System.currentTimeMillis()
-)
-object PlacasPadrao {
-    val lista = listOf("MLH 6C45", "QEW 8G04", "IWU 3D11", "ITL 4F00", "IXL 6H19")
-}
+data class PlacaEntity(@PrimaryKey val placa: String, val ativa: Boolean = true, val dataCadastro: Long = System.currentTimeMillis())
+object PlacasPadrao { val lista = listOf("MLH 6C45", "QEW 8G04", "IWU 3D11", "ITL 4F00", "IXL 6H19") }
 '''
 
-# 7. FreteEntity.kt
+# 7. FreteEntity.kt (COM NOVAS FORMAS DE PAGAMENTO)
 A["app/src/main/java/com/gerfrota/fretes/data/FreteEntity.kt"] = r'''package com.gerfrota.fretes.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 @Entity(tableName = "fretes")
 data class FreteEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val data: String, val placa: String, val valorFrete: Double,
-    val adiantamento: Double, val formaPgtoAdiant: String,
-    val saldoFrete: Double, val formaPgtoSaldo: String,
-    val recebido: Boolean, val transportadora: String,
-    val origem: String, val destino: String, val syncStatus: Int = 0
+    @PrimaryKey(autoGenerate = true) val id: Long = 0, val data: String, val placa: String, val valorFrete: Double,
+    val adiantamento: Double, val formaPgtoAdiant: String, val saldoFrete: Double, val formaPgtoSaldo: String,
+    val recebido: Boolean, val transportadora: String, val origem: String, val destino: String, val syncStatus: Int = 0
 )
 object FormasPagamento {
-    val opcoes = listOf(
-        "PIX PF",
-        "PIX VITALI",
-        "PIX COOP",
-        "PIX MOTORISTA",
-        "DEP. CTA. PF",
-        "DEP. CTA. VITALI",
-        "DEP. CTA. COOP",
-        "DEP. CTA MOTORISTA",
-        "CHEQUE"
-    )
+    val opcoes = listOf("PIX PF", "PIX VITALI", "PIX COOP", "PIX MOTORISTA",
+        "DEP. CTA. PF", "DEP. CTA. VITALI", "DEP. CTA. COOP", "DEP. CTA MOTORISTA", "CHEQUE")
 }
-data class PlacaResumo(
-    val placa: String, val totalFretes: Int,
-    val totalValor: Double, val totalAdiantamento: Double,
-    val totalSaldo: Double, val totalRecebido: Double
-)
-data class ResumoFormaPagto(
-    val formaPagto: String, val totalFretes: Int,
-    val totalValor: Double
-)
+data class PlacaResumo(val placa: String, val totalFretes: Int, val totalValor: Double, val totalAdiantamento: Double, val totalSaldo: Double, val totalRecebido: Double)
+data class ResumoFormaPagto(val formaPagto: String, val totalFretes: Int, val totalValor: Double)
 '''
 
 # 8. PlacaDao.kt
@@ -210,7 +166,7 @@ interface PlacaDao {
 }
 '''
 
-# 9. FreteDao.kt
+# 9. FreteDao.kt (COM NOVAS QUERIES DE FORMA DE PAGAMENTO)
 A["app/src/main/java/com/gerfrota/fretes/data/FreteDao.kt"] = r'''package com.gerfrota.fretes.data
 import androidx.room.*
 import kotlinx.coroutines.flow.Flow
@@ -232,40 +188,28 @@ interface FreteDao {
     @Query("SELECT SUM(saldoFrete) FROM fretes WHERE recebido = 0") fun saldoTotalAReceber(): Flow<Double?>
     @Query("SELECT SUM(adiantamento) FROM fretes") fun totalAdiantamentos(): Flow<Double?>
     @Query("""
-        SELECT placa, COUNT(*) as totalFretes,
-               SUM(valorFrete) as totalValor,
-               SUM(adiantamento) as totalAdiantamento,
-               SUM(saldoFrete) as totalSaldo,
-               SUM(CASE WHEN recebido = 1 THEN saldoFrete ELSE 0 END) as totalRecebido
+        SELECT placa, COUNT(*) as totalFretes, SUM(valorFrete) as totalValor, SUM(adiantamento) as totalAdiantamento,
+               SUM(saldoFrete) as totalSaldo, SUM(CASE WHEN recebido = 1 THEN saldoFrete ELSE 0 END) as totalRecebido
         FROM fretes GROUP BY placa ORDER BY totalSaldo DESC
     """)
     fun resumoPorPlaca(): Flow<List<PlacaResumo>>
-    @Query("SELECT * FROM fretes WHERE placa = :placa ORDER BY id DESC")
-    fun getFretesPorPlaca(placa: String): Flow<List<FreteEntity>>
-    @Query("SELECT DISTINCT transportadora FROM fretes ORDER BY transportadora")
-    fun getAllTransportadoras(): Flow<List<String>>
+    @Query("SELECT * FROM fretes WHERE placa = :placa ORDER BY id DESC") fun getFretesPorPlaca(placa: String): Flow<List<FreteEntity>>
+    @Query("SELECT DISTINCT transportadora FROM fretes ORDER BY transportadora") fun getAllTransportadoras(): Flow<List<String>>
     
     @Query("""
-        SELECT formaPgtoAdiant as formaPagto, COUNT(*) as totalFretes,
-               SUM(adiantamento) as totalValor
-        FROM fretes WHERE adiantamento > 0
-        GROUP BY formaPgtoAdiant ORDER BY totalValor DESC
+        SELECT formaPgtoAdiant as formaPagto, COUNT(*) as totalFretes, SUM(adiantamento) as totalValor
+        FROM fretes WHERE adiantamento > 0 GROUP BY formaPgtoAdiant ORDER BY totalValor DESC
     """)
     fun resumoAdiantamentoPorForma(): Flow<List<ResumoFormaPagto>>
     
     @Query("""
-        SELECT formaPgtoSaldo as formaPagto, COUNT(*) as totalFretes,
-               SUM(saldoFrete) as totalValor
-        FROM fretes WHERE saldoFrete > 0 AND recebido = 0
-        GROUP BY formaPgtoSaldo ORDER BY totalValor DESC
+        SELECT formaPgtoSaldo as formaPagto, COUNT(*) as totalFretes, SUM(saldoFrete) as totalValor
+        FROM fretes WHERE saldoFrete > 0 AND recebido = 0 GROUP BY formaPgtoSaldo ORDER BY totalValor DESC
     """)
     fun resumoSaldoPorForma(): Flow<List<ResumoFormaPagto>>
     
-    @Query("SELECT * FROM fretes WHERE formaPgtoAdiant = :forma ORDER BY id DESC")
-    fun getFretesPorFormaAdiant(forma: String): Flow<List<FreteEntity>>
-    
-    @Query("SELECT * FROM fretes WHERE formaPgtoSaldo = :forma AND recebido = 0 ORDER BY id DESC")
-    fun getFretesPorFormaSaldo(forma: String): Flow<List<FreteEntity>>
+    @Query("SELECT * FROM fretes WHERE formaPgtoAdiant = :forma ORDER BY id DESC") fun getFretesPorFormaAdiant(forma: String): Flow<List<FreteEntity>>
+    @Query("SELECT * FROM fretes WHERE formaPgtoSaldo = :forma AND recebido = 0 ORDER BY id DESC") fun getFretesPorFormaSaldo(forma: String): Flow<List<FreteEntity>>
 }
 data class SaldoTransportadora(val transportadora: String, val total: Double)
 '''
@@ -286,27 +230,16 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile private var INSTANCE: AppDatabase? = null
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
-                db.execSQL("""
-                    CREATE TABLE IF NOT EXISTS `placas` (
-                        `placa` TEXT NOT NULL PRIMARY KEY,
-                        `ativa` INTEGER NOT NULL DEFAULT 1,
-                        `dataCadastro` INTEGER NOT NULL DEFAULT 0
-                    )
-                """.trimIndent())
+                db.execSQL("""CREATE TABLE IF NOT EXISTS `placas` (`placa` TEXT NOT NULL PRIMARY KEY, `ativa` INTEGER NOT NULL DEFAULT 1, `dataCadastro` INTEGER NOT NULL DEFAULT 0)""")
                 PlacasPadrao.lista.forEach { placa ->
                     db.execSQL("INSERT OR IGNORE INTO `placas` (placa, ativa, dataCadastro) VALUES ('$placa', 1, ${System.currentTimeMillis()})")
                 }
             }
         }
-        fun get(context: Context): AppDatabase =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: Room.databaseBuilder(
-                    context.applicationContext, AppDatabase::class.java, "gerfrota.db"
-                )
-                .addMigrations(MIGRATION_1_2)
-                .build()
-                .also { INSTANCE = it }
-            }
+        fun get(context: Context): AppDatabase = INSTANCE ?: synchronized(this) {
+            INSTANCE ?: Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "gerfrota.db")
+                .addMigrations(MIGRATION_1_2).build().also { INSTANCE = it }
+        }
     }
 }
 '''
@@ -363,12 +296,7 @@ object AuthManager {
     }
     fun registrar(ctx: Context, email: String, password: String): Boolean {
         if (email.isBlank() || password.length < 4) return false
-        prefs(ctx).edit().apply {
-            putString("email", email.trim().lowercase())
-            putString("pass_hash", hash(password))
-            putBoolean("logged", true)
-            apply()
-        }
+        prefs(ctx).edit().apply { putString("email", email.trim().lowercase()); putString("pass_hash", hash(password)); putBoolean("logged", true); apply() }
         return true
     }
     fun login(ctx: Context, email: String, password: String): LoginResult {
@@ -391,7 +319,6 @@ enum class LoginResult { SUCCESS, WRONG_EMAIL, WRONG_PASSWORD, NOT_REGISTERED }
 
 # 13. LocalBackupManager.kt
 A["app/src/main/java/com/gerfrota/fretes/data/LocalBackupManager.kt"] = r'''package com.gerfrota.fretes.data
-
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -400,74 +327,47 @@ import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-
 object LocalBackupManager {
-    
     suspend fun criarBackupLocal(context: Context, fretes: List<FreteEntity>): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         runCatching {
-            val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale("pt", "BR"))
-            val fileName = "gerfrota_backup_${sdf.format(Date())}.json"
+            val fileName = "gerfrota_backup_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale("pt", "BR")).format(Date())}.json"
             val backupDir = File(context.filesDir, "backups").apply { if (!exists()) mkdirs() }
             val backupFile = File(backupDir, fileName)
             val jsonArray = JSONArray()
             fretes.forEach { f ->
                 jsonArray.put(JSONObject().apply {
-                    put("id", f.id); put("data", f.data); put("placa", f.placa)
-                    put("valorFrete", f.valorFrete); put("adiantamento", f.adiantamento)
-                    put("formaPgtoAdiant", f.formaPgtoAdiant); put("saldoFrete", f.saldoFrete)
-                    put("formaPgtoSaldo", f.formaPgtoSaldo); put("recebido", f.recebido)
-                    put("transportadora", f.transportadora); put("origem", f.origem)
-                    put("destino", f.destino); put("syncStatus", f.syncStatus)
+                    put("id", f.id); put("data", f.data); put("placa", f.placa); put("valorFrete", f.valorFrete)
+                    put("adiantamento", f.adiantamento); put("formaPgtoAdiant", f.formaPgtoAdiant); put("saldoFrete", f.saldoFrete)
+                    put("formaPgtoSaldo", f.formaPgtoSaldo); put("recebido", f.recebido); put("transportadora", f.transportadora)
+                    put("origem", f.origem); put("destino", f.destino); put("syncStatus", f.syncStatus)
                 })
             }
             backupFile.writeText(jsonArray.toString(2))
             Pair(true, backupFile.absolutePath)
-        }.getOrElse { Pair(false, "Erro ao criar backup local: ${it.message}") }
+        }.getOrElse { Pair(false, "Erro: ${it.message}") }
     }
-    
-    suspend fun listarBackupsLocais(context: Context): List<File> = withContext(Dispatchers.IO) {
-        val backupDir = File(context.filesDir, "backups")
-        if (backupDir.exists()) {
-            backupDir.listFiles { file -> file.name.endsWith(".json") && file.name.startsWith("gerfrota_backup_") }
-                ?.sortedByDescending { it.lastModified() } ?: emptyList()
-        } else emptyList()
-    }
-    
-    // CORREÇÃO AQUI: Retorno explicitamente definido como MutableList<FreteEntity>
-    suspend fun restaurarBackupLocal(context: Context, filePath: String): Pair<Boolean, MutableList<FreteEntity>> = withContext(Dispatchers.IO) {
+    suspend fun restaurarBackupLocal(context: Context, filePath: String): Pair<Boolean, List<FreteEntity>> = withContext(Dispatchers.IO) {
         runCatching {
             val file = File(filePath)
-            if (!file.exists()) return@withContext Pair(false, mutableListOf())
-            
+            if (!file.exists()) return@withContext Pair(false, emptyList())
             val jsonArray = JSONArray(file.readText())
-            // CORREÇÃO AQUI: Declaração explícita da lista mutável
             val fretes = mutableListOf<FreteEntity>()
-            
             for (i in 0 until jsonArray.length()) {
                 val obj = jsonArray.getJSONObject(i)
-                fretes.add(FreteEntity(
-                    id = obj.optLong("id", 0),
-                    data = obj.optString("data", ""),
-                    placa = obj.optString("placa", ""),
-                    valorFrete = obj.optDouble("valorFrete", 0.0),
-                    adiantamento = obj.optDouble("adiantamento", 0.0),
-                    formaPgtoAdiant = obj.optString("formaPgtoAdiant", ""),
-                    saldoFrete = obj.optDouble("saldoFrete", 0.0),
-                    formaPgtoSaldo = obj.optString("formaPgtoSaldo", ""),
-                    recebido = obj.optBoolean("recebido", false),
-                    transportadora = obj.optString("transportadora", ""),
-                    origem = obj.optString("origem", ""),
-                    destino = obj.optString("destino", ""),
-                    syncStatus = obj.optInt("syncStatus", 0)
-                ))
+                fretes.add(FreteEntity(id = obj.optLong("id", 0), data = obj.optString("data", ""), placa = obj.optString("placa", ""),
+                    valorFrete = obj.optDouble("valorFrete", 0.0), adiantamento = obj.optDouble("adiantamento", 0.0),
+                    formaPgtoAdiant = obj.optString("formaPgtoAdiant", ""), saldoFrete = obj.optDouble("saldoFrete", 0.0),
+                    formaPgtoSaldo = obj.optString("formaPgtoSaldo", ""), recebido = obj.optBoolean("recebido", false),
+                    transportadora = obj.optString("transportadora", ""), origem = obj.optString("origem", ""),
+                    destino = obj.optString("destino", ""), syncStatus = obj.optInt("syncStatus", 0)))
             }
             Pair(true, fretes)
-        }.getOrElse { Pair(false, mutableListOf()) }
+        }.getOrElse { Pair(false, emptyList()) }
     }
 }
 '''
 
-# 14. PdfExporter.kt
+# 14. PdfExporter.kt (COM NOVOS RELATÓRIOS POR FORMA)
 A["app/src/main/java/com/gerfrota/fretes/data/PdfExporter.kt"] = r'''package com.gerfrota.fretes.data
 import android.content.Context
 import android.graphics.Color
@@ -548,15 +448,10 @@ object PdfExporter {
             val file = File(folder, fileName)
             FileOutputStream(file).use { out -> pdf.writeTo(out) }
             pdf.close()
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            PdfResult(true, "Relatorio gerado!", uri)
+            PdfResult(true, "Relatorio gerado!", FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
         }.getOrElse { PdfResult(false, "Erro: ${it.message}") }
     }
-    suspend fun exportarAdiantamentoPorForma(
-        context: Context,
-        resumo: List<ResumoFormaPagto>,
-        fretes: List<FreteEntity>
-    ): PdfResult = withContext(Dispatchers.IO) {
+    suspend fun exportarAdiantamentoPorForma(context: Context, resumo: List<ResumoFormaPagto>, fretes: List<FreteEntity>): PdfResult = withContext(Dispatchers.IO) {
         runCatching {
             val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
             val df = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
@@ -618,15 +513,10 @@ object PdfExporter {
             val file = File(folder, fileName)
             FileOutputStream(file).use { out -> pdf.writeTo(out) }
             pdf.close()
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            PdfResult(true, "Relatorio de adiantamentos gerado!", uri)
+            PdfResult(true, "Relatorio de adiantamentos gerado!", FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
         }.getOrElse { PdfResult(false, "Erro: ${it.message}") }
     }
-    suspend fun exportarSaldoPorForma(
-        context: Context,
-        resumo: List<ResumoFormaPagto>,
-        fretes: List<FreteEntity>
-    ): PdfResult = withContext(Dispatchers.IO) {
+    suspend fun exportarSaldoPorForma(context: Context, resumo: List<ResumoFormaPagto>, fretes: List<FreteEntity>): PdfResult = withContext(Dispatchers.IO) {
         runCatching {
             val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
             val df = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
@@ -688,14 +578,71 @@ object PdfExporter {
             val file = File(folder, fileName)
             FileOutputStream(file).use { out -> pdf.writeTo(out) }
             pdf.close()
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
-            PdfResult(true, "Relatorio de saldo gerado!", uri)
+            PdfResult(true, "Relatorio de saldo gerado!", FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
         }.getOrElse { PdfResult(false, "Erro: ${it.message}") }
     }
 }
 '''
 
-# 15. LoginScreen.kt
+# 15. DriveBackupManager.kt
+A["app/src/main/java/com/gerfrota/fretes/drive/DriveBackupManager.kt"] = r'''package com.gerfrota.fretes.drive
+import android.accounts.AccountManager
+import android.content.Context
+import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
+import com.google.api.client.http.ByteArrayContent
+import com.google.api.client.http.javanet.NetHttpTransport
+import com.google.api.client.json.gson.GsonFactory
+import com.google.api.services.drive.Drive
+import com.google.api.services.drive.DriveScopes
+import com.google.api.services.drive.model.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.FileInputStream
+class DriveBackupManager(private val context: Context) {
+    private fun getGoogleAccount(): String? {
+        val am = AccountManager.get(context)
+        return am.getAccountsByType("com.google").firstOrNull()?.name
+    }
+    private fun buildDrive(accountEmail: String): Drive {
+        val credential = GoogleAccountCredential.usingOAuth2(context, listOf(DriveScopes.DRIVE_FILE)).apply { selectedAccountName = accountEmail }
+        return Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential).setApplicationName("GerFrotaFretes").build()
+    }
+    suspend fun uploadBackupParaDrive(backupPath: String): BackupDriveResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val accountEmail = getGoogleAccount() ?: return@withContext BackupDriveResult.Error("Nenhuma conta Google no dispositivo.")
+            val drive = buildDrive(accountEmail)
+            val backupFile = java.io.File(backupPath)
+            val content = ByteArrayContent.fromString("application/json", FileInputStream(backupFile).readBytes())
+            val metadata = File().apply { name = "gerfrota_backup_${System.currentTimeMillis()}.json"; mimeType = "application/json" }
+            val query = "name contains 'gerfrota_backup' and mimeType='application/json' and trashed=false"
+            val existing = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").execute()
+            if (existing.files.isNullOrEmpty()) drive.files().create(metadata, content).setFields("id").execute()
+            else drive.files().update(existing.files[0].id, metadata, content).execute()
+            BackupDriveResult.Sucesso("Backup enviado para Drive ($accountEmail)")
+        }.getOrElse { BackupDriveResult.Error("Erro no upload: ${it.message}") }
+    }
+    suspend fun downloadBackupDoDrive(): BackupDriveResult = withContext(Dispatchers.IO) {
+        runCatching {
+            val accountEmail = getGoogleAccount() ?: return@withContext BackupDriveResult.Error("Nenhuma conta Google no dispositivo.")
+            val drive = buildDrive(accountEmail)
+            val query = "name contains 'gerfrota_backup' and mimeType='application/json' and trashed=false"
+            val files = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").orderBy("createdTime desc").execute()
+            if (files.files.isNullOrEmpty()) return@withContext BackupDriveResult.Error("Nenhum backup encontrado no Drive.")
+            val inputStream = drive.files().get(files.files[0].id).executeAsInputStream()
+            val backupDir = context.filesDir.resolve("backups").apply { if (!exists()) mkdirs() }
+            val backupFile = backupDir.resolve("gerfrota_backup_downloaded.json")
+            backupFile.outputStream().use { it.write(inputStream.readBytes()) }
+            BackupDriveResult.Sucesso("Backup baixado do Drive: ${backupFile.absolutePath}")
+        }.getOrElse { BackupDriveResult.Error("Erro no download: ${it.message}") }
+    }
+}
+sealed class BackupDriveResult {
+    data class Sucesso(val message: String) : BackupDriveResult()
+    data class Error(val message: String) : BackupDriveResult()
+}
+'''
+
+# 16. LoginScreen.kt
 A["app/src/main/java/com/gerfrota/fretes/ui/LoginScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -730,35 +677,24 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
     var isRegisterMode by remember { mutableStateOf(!AuthManager.isRegistered(context)) }
     var loading by remember { mutableStateOf(false) }
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.primary) {
-        Column(modifier = Modifier.fillMaxSize().padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center) {
+        Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Image(painter = painterResource(R.drawable.ic_truck_logo), contentDescription = null, modifier = Modifier.size(140.dp))
             Spacer(Modifier.height(20.dp))
-            Text("GerFrota Fretes", fontSize = 30.sp, fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimary, textAlign = TextAlign.Center)
-            Text(if (isRegisterMode) "Crie sua conta" else "Entre com sua conta",
-                fontSize = 15.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f))
+            Text("GerFrota Fretes", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onPrimary, textAlign = TextAlign.Center)
+            Text(if (isRegisterMode) "Crie sua conta" else "Entre com sua conta", fontSize = 15.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f))
             Spacer(Modifier.height(32.dp))
-            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
                 Column(Modifier.padding(20.dp)) {
-                    OutlinedTextField(value = email, onValueChange = { email = it },
-                        label = { Text("E-mail") }, leadingIcon = { Icon(Icons.Default.Email, null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), singleLine = true)
+                    OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text("E-mail") }, leadingIcon = { Icon(Icons.Default.Email, null) },
+                        modifier = Modifier.fillMaxWidth(), keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email), singleLine = true)
                     Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(value = password, onValueChange = { password = it },
-                        label = { Text("Senha") }, leadingIcon = { Icon(Icons.Default.Lock, null) },
-                        modifier = Modifier.fillMaxWidth(),
-                        visualTransformation = PasswordVisualTransformation(),
+                    OutlinedTextField(value = password, onValueChange = { password = it }, label = { Text("Senha") }, leadingIcon = { Icon(Icons.Default.Lock, null) },
+                        modifier = Modifier.fillMaxWidth(), visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), singleLine = true)
                     if (isRegisterMode) {
                         Spacer(Modifier.height(12.dp))
-                        OutlinedTextField(value = confirmPassword, onValueChange = { confirmPassword = it },
-                            label = { Text("Confirmar senha") }, leadingIcon = { Icon(Icons.Default.Lock, null) },
-                            modifier = Modifier.fillMaxWidth(),
-                            visualTransformation = PasswordVisualTransformation(),
+                        OutlinedTextField(value = confirmPassword, onValueChange = { confirmPassword = it }, label = { Text("Confirmar senha") }, leadingIcon = { Icon(Icons.Default.Lock, null) },
+                            modifier = Modifier.fillMaxWidth(), visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), singleLine = true)
                     }
                     Spacer(Modifier.height(20.dp))
@@ -766,30 +702,19 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
                         if (loading) return@Button
                         loading = true
                         if (isRegisterMode) {
-                            if (password != confirmPassword) {
-                                Toast.makeText(context, "As senhas nao conferem", Toast.LENGTH_SHORT).show()
-                                loading = false; return@Button
-                            }
-                            if (AuthManager.registrar(context, email, password)) {
-                                Toast.makeText(context, "Conta criada!", Toast.LENGTH_SHORT).show()
-                                onLoginSuccess()
-                            } else {
-                                Toast.makeText(context, "Preencha e-mail e senha (min. 4)", Toast.LENGTH_SHORT).show()
-                            }
+                            if (password != confirmPassword) { Toast.makeText(context, "As senhas nao conferem", Toast.LENGTH_SHORT).show(); loading = false; return@Button }
+                            if (AuthManager.registrar(context, email, password)) { Toast.makeText(context, "Conta criada!", Toast.LENGTH_SHORT).show(); onLoginSuccess() }
+                            else { Toast.makeText(context, "Preencha e-mail e senha (min. 4)", Toast.LENGTH_SHORT).show() }
                         } else {
                             when (AuthManager.login(context, email, password)) {
                                 LoginResult.SUCCESS -> onLoginSuccess()
                                 LoginResult.WRONG_EMAIL -> Toast.makeText(context, "E-mail nao cadastrado", Toast.LENGTH_SHORT).show()
                                 LoginResult.WRONG_PASSWORD -> Toast.makeText(context, "Senha incorreta", Toast.LENGTH_SHORT).show()
-                                LoginResult.NOT_REGISTERED -> {
-                                    isRegisterMode = true
-                                    Toast.makeText(context, "Crie uma conta", Toast.LENGTH_SHORT).show()
-                                }
+                                LoginResult.NOT_REGISTERED -> { isRegisterMode = true; Toast.makeText(context, "Crie uma conta", Toast.LENGTH_SHORT).show() }
                             }
                         }
                         loading = false
-                    }, modifier = Modifier.fillMaxWidth().height(52.dp),
-                        shape = RoundedCornerShape(12.dp), enabled = !loading) {
+                    }, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(12.dp), enabled = !loading) {
                         if (loading) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
                         else Text(if (isRegisterMode) "CRIAR CONTA" else "ENTRAR", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
@@ -802,17 +727,14 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Text("Seus dados ficam salvos no dispositivo",
-                fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
-                textAlign = TextAlign.Center)
+            Text("Seus dados ficam salvos no dispositivo", fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f), textAlign = TextAlign.Center)
         }
     }
 }
 '''
 
-# 16. HomeScreen.kt - COM .toString() EM TODOS OS nf.format()
+# 17. HomeScreen.kt
 A["app/src/main/java/com/gerfrota/fretes/ui/HomeScreen.kt"] = r'''package com.gerfrota.fretes.ui
-
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -836,148 +758,107 @@ import com.gerfrota.fretes.data.Repository
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
-    repo: Repository, userEmail: String,
-    onAddClick: () -> Unit, onEditClick: (FreteEntity) -> Unit,
-    onSaldoClick: () -> Unit, onPlacasClick: () -> Unit,
-    onGerenciarPlacasClick: () -> Unit, onLogout: () -> Unit
-) {
+fun HomeScreen(repo: Repository, userEmail: String, onAddClick: () -> Unit, onEditClick: (FreteEntity) -> Unit,
+    onPlacasClick: () -> Unit, onFretesClick: () -> Unit, onRelatoriosClick: () -> Unit, onBackupClick: () -> Unit, onLogout: () -> Unit) {
     val fretes by repo.fretes.collectAsState(initial = emptyList())
     val saldoTotal by repo.saldoTotal.collectAsState(initial = 0.0)
     val scope = rememberCoroutineScope()
     val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
     val context = LocalContext.current
-    var exportando by remember { mutableStateOf(false) }
-    var pdfUri by remember { mutableStateOf<android.net.Uri?>(null) }
-    var showShareDialog by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-
+    var filtroTransportadora by remember { mutableStateOf<String?>(null) }
+    var filtroPlaca by remember { mutableStateOf<String?>(null) }
+    val transportadoras by repo.transportadoras.collectAsState(initial = emptyList())
+    val placas by repo.placasLista.collectAsState(initial = emptyList())
+    val fretesFiltrados = fretes.filter { f ->
+        (filtroTransportadora == null || f.transportadora == filtroTransportadora) && (filtroPlaca == null || f.placa == filtroPlaca)
+    }
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(text = "GerFrota Fretes", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
-                actions = {
-                    IconButton(onClick = { menuOpen = true }) {
-                        Icon(Icons.Default.MoreVert, "Mais", tint = Color.White)
-                    }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text(text = "Gerenciar Placas") },
-                            onClick = { menuOpen = false; onGerenciarPlacasClick() },
-                            leadingIcon = { Icon(Icons.Default.LocalShipping, null) }
-                        )
-                    }
-                    IconButton(onClick = {
-                        if (!exportando && fretes.isNotEmpty()) {
-                            exportando = true
-                            scope.launch {
-                                val r = PdfExporter.exportar(context, fretes)
-                                exportando = false
-                                if (r.success && r.uri != null) { pdfUri = r.uri; showShareDialog = true }
-                            }
-                        }
-                    }) {
-                        if (exportando) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White)
-                        else Icon(Icons.Default.PictureAsPdf, "PDF", tint = Color.White)
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = userEmail, fontSize = 11.sp, color = Color.White)
-                        IconButton(onClick = onLogout) { Icon(Icons.Default.Logout, "Sair", tint = Color.White) }
-                    }
+            TopAppBar(title = { Column {
+                Text(text = "GerFrota Fretes", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Text(text = "Sistema de Gestão de Fretes", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
+            } }, actions = {
+                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "Menu", tint = Color.White) }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(text = { Text(text = "📊 Relatorios") }, onClick = { menuOpen = false; onRelatoriosClick() }, leadingIcon = { Icon(Icons.Default.PictureAsPdf, null) })
+                    DropdownMenuItem(text = { Text(text = "💾 Backup") }, onClick = { menuOpen = false; onBackupClick() }, leadingIcon = { Icon(Icons.Default.CloudUpload, null) })
+                    DropdownMenuItem(text = { Text(text = "Sair") }, onClick = { menuOpen = false; onLogout() }, leadingIcon = { Icon(Icons.Default.Logout, null) })
                 }
-            )
+            })
         },
-        floatingActionButton = {
-            FloatingActionButton(onClick = onAddClick) {
-                Icon(Icons.Default.Add, "Novo Frete")
-            }
-        }
+        floatingActionButton = { FloatingActionButton(onClick = onAddClick) { Icon(Icons.Default.Add, "Novo Frete") } }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Card(
-                modifier = Modifier.fillMaxWidth().padding(16.dp).clickable { onSaldoClick() },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
-            ) {
-                Column(Modifier.padding(20.dp)) {
-                    Text(text = "SALDO A RECEBER", fontSize = 14.sp, color = Color.White.copy(alpha = 0.8f))
-                    // CORREÇÃO CRÍTICA AQUI: parâmetro 'text =' e '.toString()' explícito
-                    Text(
-                        text = nf.format(saldoTotal ?: 0.0).toString(),
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(text = "Por transportadora", fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Card(modifier = Modifier.weight(1f).clickable { onRelatoriosClick() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
+                    Column(Modifier.padding(16.dp)) { Text(text = "GerFrota Fretes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(text = "Gestão Completa", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f)) }
+                }
+                Card(modifier = Modifier.weight(1f).clickable { onPlacasClick() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary)) {
+                    Column(Modifier.padding(16.dp)) { Text(text = "Placas", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(text = "${placas.size} veículos", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f)) }
                 }
             }
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable { onFretesClick() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiary)) {
+                Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column { Text(text = "Fretes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(text = "${fretes.size} registros", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f)) }
+                    Icon(Icons.Default.LocalShipping, null, tint = Color.White)
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                var showTranspFilter by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(filtroTransportadora != null, onExpandedChange = { showTranspFilter = it }) {
+                    OutlinedTextField(value = filtroTransportadora ?: "Todas Transportadoras", onValueChange = {}, modifier = Modifier.weight(1f).menuAnchor(), readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(showTranspFilter) })
+                    ExposedDropdownMenu(showTranspFilter, onDismissRequest = { showTranspFilter = false }) {
+                        DropdownMenuItem(text = { Text("Todas Transportadoras") }, onClick = { filtroTransportadora = null; showTranspFilter = false })
+                        transportadoras.forEach { transp -> DropdownMenuItem(text = { Text(transp) }, onClick = { filtroTransportadora = transp; showTranspFilter = false }) }
+                    }
+                }
+                var showPlacaFilter by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(filtroPlaca != null, onExpandedChange = { showPlacaFilter = it }) {
+                    OutlinedTextField(value = filtroPlaca ?: "Todas Placas", onValueChange = {}, modifier = Modifier.weight(1f).menuAnchor(), readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(showPlacaFilter) })
+                    ExposedDropdownMenu(showPlacaFilter, onDismissRequest = { showPlacaFilter = false }) {
+                        DropdownMenuItem(text = { Text("Todas Placas") }, onClick = { filtroPlaca = null; showPlacaFilter = false })
+                        placas.forEach { placa -> DropdownMenuItem(text = { Text(placa) }, onClick = { filtroPlaca = placa; showPlacaFilter = false }) }
+                    }
+                }
+            }
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(text = "SALDO A RECEBER", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                    Text(text = nf.format(saldoTotal ?: 0.0).toString(), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
+                    if (filtroTransportadora != null || filtroPlaca != null) Text(text = "Filtrado", fontSize = 11.sp, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f))
+                }
+            }
+            Text(text = "  Fretes Recentes", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
             LazyColumn(Modifier.padding(horizontal = 16.dp)) {
-                items(fretes) { f ->
+                items(fretesFiltrados) { f ->
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Column(Modifier.padding(12.dp)) {
-                            Text(text = f.transportadora.ifBlank { "Sem transportadora" }, fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(text = f.transportadora.ifBlank { "Sem transportadora" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                Text(text = nf.format(f.saldoFrete).toString(), fontWeight = FontWeight.Bold, color = if (f.recebido) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                            }
                             Text(text = "${f.origem} -> ${f.destino}", fontSize = 12.sp, color = Color.Gray)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(text = "${f.data} - ${f.placa}", fontSize = 11.sp, color = Color.Gray)
-                                // CORREÇÃO CRÍTICA AQUI TAMBÉM
-                                Text(
-                                    text = nf.format(f.saldoFrete).toString(), 
-                                    fontWeight = FontWeight.Bold
-                                )
+                                TextButton(onClick = { onEditClick(f) }) { Text(text = "Editar", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary) }
                             }
+                            if (f.recebido) Text(text = "RECEBIDO", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
         }
     }
-    
-    if (showShareDialog && pdfUri != null) {
-        AlertDialog(
-            onDismissRequest = { showShareDialog = false },
-            title = { Text(text = "PDF Gerado!") },
-            text = { Text(text = "Escolha como compartilhar:") },
-            confirmButton = {
-                Column {
-                    TextButton(onClick = { compartilharWhatsApp(context, pdfUri!!); showShareDialog = false }) {
-                        Text(text = "WhatsApp")
-                    }
-                    TextButton(onClick = { compartilharGenerico(context, pdfUri!!); showShareDialog = false }) {
-                        Text(text = "Outros Apps")
-                    }
-                }
-            },
-            dismissButton = { TextButton(onClick = { showShareDialog = false }) { Text(text = "Fechar") } }
-        )
-    }
-}
-
-private fun compartilharWhatsApp(ctx: android.content.Context, uri: android.net.Uri) {
-    try {
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri)
-            setPackage("com.whatsapp"); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        ctx.startActivity(intent)
-    } catch (e: Exception) {
-        Toast.makeText(ctx, "WhatsApp nao instalado", Toast.LENGTH_SHORT).show()
-        compartilharGenerico(ctx, uri)
-    }
-}
-
-private fun compartilharGenerico(ctx: android.content.Context, uri: android.net.Uri) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_SUBJECT, "Relatorio de Fretes")
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    ctx.startActivity(Intent.createChooser(intent, "Compartilhar via..."))
 }
 '''
 
-# 17. PlacasScreen.kt
+# 18. PlacasScreen.kt
 A["app/src/main/java/com/gerfrota/fretes/ui/PlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -1004,121 +885,163 @@ fun PlacasScreen(repo: Repository, onBack: () -> Unit) {
     val resumo by repo.resumoPorPlaca.collectAsState(initial = emptyList())
     val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
     var placaSelecionada by remember { mutableStateOf<String?>(null) }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(if (placaSelecionada == null) "Fretes por Placa" else placaSelecionada!!) },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (placaSelecionada != null) placaSelecionada = null else onBack()
-                    }) { Icon(Icons.Default.ArrowBack, "Voltar") }
-                }
-            )
-        }
-    ) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(text = if (placaSelecionada == null) "Fretes por Placa" else placaSelecionada!!) },
+        navigationIcon = { IconButton(onClick = { if (placaSelecionada != null) placaSelecionada = null else onBack() }) { Icon(Icons.Default.ArrowBack, "Voltar") } } ) }) { padding ->
         if (placaSelecionada == null) {
             Column(Modifier.padding(padding).fillMaxSize()) {
                 val totalGeral = resumo.sumOf { it.totalSaldo }
                 val fretesTotal = resumo.sumOf { it.totalFretes }
-                Card(modifier = Modifier.fillMaxWidth().padding(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
+                Card(modifier = Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
                     Column(Modifier.padding(20.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("TOTAL GERAL - TODAS AS PLACAS",
-                            color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        Text(nf.format(totalGeral).toString(), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                        Text("$fretesTotal fretes cadastrados", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                        Text(text = "TOTAL GERAL - TODAS AS PLACAS", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(text = nf.format(totalGeral).toString(), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "$fretesTotal fretes cadastrados", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                     }
                 }
-                if (resumo.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Nenhuma placa com fretes cadastrados", color = Color.Gray)
-                    }
-                } else {
-                    LazyColumn(Modifier.padding(horizontal = 16.dp)) {
-                        items(resumo) { r -> CardPlaca(r, nf) { placaSelecionada = r.placa } }
-                    }
-                }
+                LazyColumn(Modifier.padding(horizontal = 16.dp)) { items(resumo) { r -> CardPlaca(r, nf) { placaSelecionada = r.placa } } }
             }
         } else {
             val fretes by repo.fretesPorPlaca(placaSelecionada!!).collectAsState(initial = emptyList())
-            LazyColumn(Modifier.padding(padding).padding(horizontal = 16.dp)) {
-                items(fretes) { f -> FreteItemPlaca(f, nf) }
-            }
+            LazyColumn(Modifier.padding(padding).padding(horizontal = 16.dp)) { items(fretes) { f -> FreteItemPlaca(f, nf) } }
         }
     }
 }
 @Composable
 fun CardPlaca(resumo: PlacaResumo, nf: NumberFormat, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onClick() },
-        elevation = CardDefaults.cardElevation(3.dp)) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onClick() }, elevation = CardDefaults.cardElevation(3.dp)) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.LocalShipping, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
                 Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(resumo.placa, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text("${resumo.totalFretes} fretes", fontSize = 12.sp, color = Color.Gray)
-                }
-                Text(nf.format(resumo.totalSaldo).toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                Column(Modifier.weight(1f)) { Text(text = resumo.placa, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(text = "${resumo.totalFretes} fretes", fontSize = 12.sp, color = Color.Gray) }
+                Text(text = nf.format(resumo.totalSaldo).toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp,
                     color = if (resumo.totalSaldo > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
             }
-            Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = Color.Gray.copy(alpha = 0.2f))
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                InfoItem("Valor Total", nf.format(resumo.totalValor).toString())
-                InfoItem("Adiantamentos", nf.format(resumo.totalAdiantamento).toString())
-            }
-            Spacer(Modifier.height(4.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                InfoItem("Ja Recebido", nf.format(resumo.totalRecebido).toString(), color = MaterialTheme.colorScheme.primary)
-                InfoItem("Saldo Pendente", nf.format(resumo.totalSaldo).toString(), color = MaterialTheme.colorScheme.error)
-            }
-            Spacer(Modifier.height(8.dp))
-            Text("Toque para ver os fretes", fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
         }
     }
 }
 @Composable
-fun InfoItem(label: String, value: String, color: Color = Color.Black) {
-    Column {
-        Text(label, fontSize = 10.sp, color = Color.Gray)
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = color)
-    }
-}
-@Composable
 fun FreteItemPlaca(f: FreteEntity, nf: NumberFormat) {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), elevation = CardDefaults.cardElevation(2.dp)) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         Column(Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(f.transportadora.ifBlank { "Sem transportadora" }, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Text("${f.origem} -> ${f.destino}", fontSize = 12.sp, color = Color.Gray)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(nf.format(f.saldoFrete).toString(), fontWeight = FontWeight.Bold, fontSize = 14.sp,
-                        color = if (f.recebido) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                    Text(f.data, fontSize = 11.sp, color = Color.Gray)
-                }
-            }
-            Spacer(Modifier.height(4.dp))
+            Text(text = f.transportadora.ifBlank { "Sem transportadora" }, fontWeight = FontWeight.Bold)
+            Text(text = "${f.origem} -> ${f.destino}", fontSize = 12.sp, color = Color.Gray)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Valor: ${nf.format(f.valorFrete).toString()}", fontSize = 11.sp, color = Color.Gray)
-                Text("Adiant.: ${nf.format(f.adiantamento).toString()}", fontSize = 11.sp, color = Color.Gray)
-                if (f.recebido) Text("RECEBIDO", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                Text(text = "${f.data}", fontSize = 11.sp, color = Color.Gray)
+                Text(text = nf.format(f.saldoFrete).toString(), fontWeight = FontWeight.Bold)
             }
         }
     }
 }
 '''
 
-# 18. GerenciarPlacasScreen.kt
-A["app/src/main/java/com/gerfrota/fretes/ui/GerenciarPlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
+# 19. RelatoriosScreen.kt
+A["app/src/main/java/com/gerfrota/fretes/ui/RelatoriosScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import android.widget.Toast
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.gerfrota.fretes.data.PdfExporter
+import com.gerfrota.fretes.data.Repository
+import kotlinx.coroutines.launch
+import java.text.NumberFormat
+import java.util.*
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RelatoriosScreen(repo: Repository, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val fretes by repo.fretes.collectAsState(initial = emptyList())
+    val fretesNaoRecebidos by repo.fretesNaoRecebidos.collectAsState(initial = emptyList())
+    val totalAdiant by repo.totalAdiantamentos.collectAsState(initial = 0.0)
+    val resumoAdiant by repo.resumoAdiantamentoPorForma.collectAsState(initial = emptyList())
+    val resumoSaldo by repo.resumoSaldoPorForma.collectAsState(initial = emptyList())
+    var gerando by remember { mutableStateOf(false) }
+    var tipoRelatorio by remember { mutableStateOf("total") }
+    val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    Scaffold(topBar = { TopAppBar(title = { Text(text = "Relatorios") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } }) }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(16.dp)) { Text(text = "Relatorios PDF", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Escolha o tipo e gere em PDF", fontSize = 12.sp) }
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(text = "Tipo de Relatorio", fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = tipoRelatorio == "total", onClick = { tipoRelatorio = "total" }, label = { Text(text = "Total") })
+                FilterChip(selected = tipoRelatorio == "periodo", onClick = { tipoRelatorio = "periodo" }, label = { Text(text = "Periodo") })
+                FilterChip(selected = tipoRelatorio == "adiant_forma", onClick = { tipoRelatorio = "adiant_forma" }, label = { Text(text = "Adiant. por Forma") })
+                FilterChip(selected = tipoRelatorio == "saldo_forma", onClick = { tipoRelatorio = "saldo_forma" }, label = { Text(text = "Saldo por Forma") })
+            }
+            Spacer(Modifier.height(16.dp))
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(text = "Resumo Geral", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Spacer(Modifier.height(8.dp))
+                    Text(text = "Total de fretes: ${fretes.size}", fontSize = 12.sp)
+                    Text(text = "Fretes nao recebidos: ${fretesNaoRecebidos.size}", fontSize = 12.sp)
+                    Text(text = "Total adiantamentos: ${nf.format(totalAdiant ?: 0.0)}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            if (tipoRelatorio == "adiant_forma") {
+                Spacer(Modifier.height(16.dp))
+                Text(text = "Adiantamentos por Forma de Pagamento", fontWeight = FontWeight.Bold)
+                if (resumoAdiant.isEmpty()) Text(text = "Nenhum adiantamento registrado", color = Color.Gray, modifier = Modifier.padding(8.dp))
+                else { resumoAdiant.forEach { r -> Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Row(Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = r.formaPagto, fontWeight = FontWeight.Bold)
+                        Text(text = "${r.totalFretes}x ${nf.format(r.totalValor)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    }}}}
+            }
+            if (tipoRelatorio == "saldo_forma") {
+                Spacer(Modifier.height(16.dp))
+                Text(text = "Saldo a Receber por Forma de Pagamento", fontWeight = FontWeight.Bold)
+                if (resumoSaldo.isEmpty()) Text(text = "Nenhum saldo pendente", color = Color.Gray, modifier = Modifier.padding(8.dp))
+                else { resumoSaldo.forEach { r -> Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Row(Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(text = r.formaPagto, fontWeight = FontWeight.Bold)
+                        Text(text = "${r.totalFretes}x ${nf.format(r.totalValor)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                    }}}}
+            }
+            Spacer(Modifier.height(24.dp))
+            Button(onClick = {
+                if (gerando) return@Button
+                gerando = true
+                scope.launch {
+                    val resultado = when (tipoRelatorio) {
+                        "adiant_forma" -> PdfExporter.exportarAdiantamentoPorForma(context, resumoAdiant, fretes)
+                        "saldo_forma" -> PdfExporter.exportarSaldoPorForma(context, resumoSaldo, fretes)
+                        else -> PdfExporter.exportar(context, fretes, "Relatorio Completo")
+                    }
+                    gerando = false
+                    Toast.makeText(context, if (resultado.success) "Relatorio gerado!" else resultado.message, Toast.LENGTH_LONG).show()
+                }
+            }, modifier = Modifier.fillMaxWidth().height(56.dp), enabled = !gerando) {
+                if (gerando) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                else { Icon(Icons.Default.PictureAsPdf, null); Spacer(Modifier.width(8.dp)); Text(text = "GERAR RELATORIO PDF", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
+    }
+}
+'''
+
+# 20. BackupScreen.kt
+A["app/src/main/java/com/gerfrota/fretes/ui/BackupScreen.kt"] = r'''package com.gerfrota.fretes.ui
+import android.widget.Toast
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -1128,219 +1051,88 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gerfrota.fretes.data.PlacaEntity
+import com.gerfrota.fretes.data.LocalBackupManager
 import com.gerfrota.fretes.data.Repository
+import com.gerfrota.fretes.drive.DriveBackupManager
 import kotlinx.coroutines.launch
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GerenciarPlacasScreen(repo: Repository, onBack: () -> Unit) {
+fun BackupScreen(repo: Repository, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val placas by repo.todasPlacas.collectAsState(initial = emptyList())
-    var showAddDialog by remember { mutableStateOf(false) }
-    var placaEditando by remember { mutableStateOf<PlacaEntity?>(null) }
-    var showDeleteConfirm by remember { mutableStateOf<PlacaEntity?>(null) }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Gerenciar Placas") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") }
-                },
-                actions = {
-                    IconButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Default.Add, "Adicionar placa", tint = MaterialTheme.colorScheme.onPrimary)
+    val driveManager = remember { DriveBackupManager(context) }
+    val fretes by repo.fretes.collectAsState(initial = emptyList())
+    var etapa by remember { mutableStateOf(1) }
+    var processando by remember { mutableStateOf(false) }
+    var mensagem by remember { mutableStateOf("") }
+    var backupPath by remember { mutableStateOf<String?>(null) }
+    Scaffold(topBar = { TopAppBar(title = { Text(text = "Backup - 3 Etapas") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } }) }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
+            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(16.dp)) { Text(text = "Sistema de Backup", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Siga as 3 etapas para backup completo", fontSize = 12.sp) }
+            }
+            Spacer(Modifier.height(24.dp))
+            StepCard(numero = 1, titulo = "Gerar Arquivo de Backup", descricao = "Cria arquivo JSON com todos os fretes", icone = Icons.Default.Save, ativo = etapa == 1,
+                acao = { processando = true; scope.launch {
+                    val (sucesso, path) = LocalBackupManager.criarBackupLocal(context, fretes); processando = false
+                    if (sucesso) { backupPath = path; etapa = 2; mensagem = "Backup gerado: $path" } else { mensagem = "Erro ao gerar backup" }
+                    Toast.makeText(context, if (sucesso) "Backup gerado!" else "Erro", Toast.LENGTH_SHORT).show()
+                }}, processando = processando && etapa == 1)
+            Spacer(Modifier.height(16.dp))
+            StepCard(numero = 2, titulo = "Upload para Google Drive", descricao = "Envia backup para sua conta Google Drive", icone = Icons.Default.CloudUpload, ativo = etapa == 2,
+                habilitado = backupPath != null, acao = { if (backupPath == null) return@StepCard; processando = true; scope.launch {
+                    val resultado = driveManager.uploadBackupParaDrive(backupPath!!); processando = false
+                    when (resultado) {
+                        is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso -> { etapa = 3; mensagem = resultado.message }
+                        is com.gerfrota.fretes.drive.BackupDriveResult.Error -> { mensagem = resultado.message }
                     }
-                }
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { showAddDialog = true }) {
-                Icon(Icons.Default.Add, "Nova placa")
-            }
-        }
-    ) { padding ->
-        if (placas.isEmpty()) {
-            Box(
-                modifier = Modifier.padding(padding).fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.LocalShipping, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
-                    Spacer(Modifier.height(16.dp))
-                    Text("Nenhuma placa cadastrada", color = Color.Gray)
-                    Text("Toque no + para adicionar", color = Color.Gray, fontSize = 12.sp)
-                }
-            }
-        } else {
-            LazyColumn(Modifier.padding(padding).padding(horizontal = 16.dp)) {
-                items(placas) { placa ->
-                    CardPlacaItem(
-                        placa = placa,
-                        onEdit = { placaEditando = placa },
-                        onDelete = { showDeleteConfirm = placa },
-                        onToggle = {
-                            scope.launch {
-                                if (placa.ativa) repo.desativarPlaca(placa.placa)
-                                else repo.ativarPlaca(placa.placa)
-                            }
-                        }
-                    )
-                }
-            }
-        }
-    }
-    if (showAddDialog || placaEditando != null) {
-        DialogPlacaForm(
-            placaExistente = placaEditando,
-            repo = repo,
-            onDismiss = {
-                showAddDialog = false
-                placaEditando = null
-            },
-            onSuccess = {
-                showAddDialog = false
-                placaEditando = null
-                Toast.makeText(context, "Placa salva!", Toast.LENGTH_SHORT).show()
-            }
-        )
-    }
-    if (showDeleteConfirm != null) {
-        val placa = showDeleteConfirm!!
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = null },
-            icon = { Icon(Icons.Default.Warning, null, tint = Color.Red) },
-            title = { Text("Excluir placa?") },
-            text = { Text("A placa ${placa.placa} sera removida permanentemente.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch {
-                        repo.deletePlacaByNome(placa.placa)
-                        Toast.makeText(context, "Placa excluida", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso) "Upload concluído!" else resultado.message, Toast.LENGTH_LONG).show()
+                }}, processando = processando && etapa == 2)
+            Spacer(Modifier.height(16.dp))
+            StepCard(numero = 3, titulo = "Download do Google Drive", descricao = "Baixa backup mais recente do Drive", icone = Icons.Default.CloudDownload, ativo = etapa == 3,
+                acao = { processando = true; scope.launch {
+                    val resultado = driveManager.downloadBackupDoDrive(); processando = false
+                    when (resultado) {
+                        is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso -> { mensagem = resultado.message }
+                        is com.gerfrota.fretes.drive.BackupDriveResult.Error -> { mensagem = resultado.message }
                     }
-                    showDeleteConfirm = null
-                }) { Text("Excluir", color = Color.Red) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancelar") }
+                    Toast.makeText(context, if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso) "Download concluído!" else resultado.message, Toast.LENGTH_LONG).show()
+                }}, processando = processando && etapa == 3)
+            Spacer(Modifier.height(24.dp))
+            if (mensagem.isNotEmpty()) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (etapa == 3) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer)) {
+                    Text(text = mensagem, modifier = Modifier.padding(16.dp), fontSize = 12.sp)
+                }
             }
-        )
-    }
-}
-@Composable
-fun CardPlacaItem(
-    placa: PlacaEntity,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit,
-    onToggle: () -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Default.LocalShipping,
-                null,
-                tint = if (placa.ativa) MaterialTheme.colorScheme.primary else Color.Gray,
-                modifier = Modifier.size(32.dp)
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    placa.placa,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = if (placa.ativa) Color.Unspecified else Color.Gray
-                )
-                Text(
-                    if (placa.ativa) "Ativa" else "Inativa",
-                    fontSize = 11.sp,
-                    color = if (placa.ativa) MaterialTheme.colorScheme.primary else Color.Gray
-                )
-            }
-            IconButton(onClick = onToggle) {
-                Icon(
-                    if (placa.ativa) Icons.Default.ToggleOn else Icons.Default.ToggleOff,
-                    null,
-                    tint = if (placa.ativa) MaterialTheme.colorScheme.primary else Color.Gray
-                )
-            }
-            IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, null, tint = Color.Red)
+            Spacer(Modifier.height(16.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { etapa = 1 }, modifier = Modifier.weight(1f), enabled = etapa > 1) { Text(text = "Reiniciar") }
+                Button(onClick = onBack, modifier = Modifier.weight(1f)) { Text(text = "Concluir") }
             }
         }
     }
 }
 @Composable
-fun DialogPlacaForm(
-    placaExistente: PlacaEntity?,
-    repo: Repository,
-    onDismiss: () -> Unit,
-    onSuccess: () -> Unit
-) {
-    val scope = rememberCoroutineScope()
-    var placaInput by remember { mutableStateOf(placaExistente?.placa ?: "") }
-    var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (placaExistente == null) "Nova Placa" else "Editar Placa") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = placaInput,
-                    onValueChange = {
-                        placaInput = it.uppercase()
-                        error = null
-                    },
-                    label = { Text("Placa (ex: ABC 1D23)") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        capitalization = KeyboardCapitalization.Characters
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-                if (error != null) {
-                    Text(error!!, color = Color.Red, fontSize = 12.sp)
-                }
+fun StepCard(numero: Int, titulo: String, descricao: String, icone: androidx.compose.ui.graphics.vector.ImageVector, ativo: Boolean, acao: () -> Unit, processando: Boolean = false, habilitado: Boolean = true) {
+    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (ativo) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant),
+        border = if (ativo) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null) {
+        Row(Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icone, null, tint = if (ativo) MaterialTheme.colorScheme.primary else Color.Gray, modifier = Modifier.size(40.dp))
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) { Text(text = "Etapa $numero: $titulo", fontWeight = FontWeight.Bold, fontSize = 14.sp); Text(text = descricao, fontSize = 11.sp, color = Color.Gray) }
+            Button(onClick = acao, enabled = habilitado && !processando) {
+                if (processando) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
+                else Text(text = "Executar")
             }
-        },
-        confirmButton = {
-            TextButton(onClick = {
-                val placa = placaInput.trim()
-                if (placa.length < 7) {
-                    error = "Placa deve ter pelo menos 7 caracteres"
-                    return@TextButton
-                }
-                scope.launch {
-                    if (repo.placaExiste(placa) && placaExistente?.placa != placa) {
-                        error = "Esta placa ja esta cadastrada"
-                        return@launch
-                    }
-                    repo.insertPlaca(PlacaEntity(placa = placa))
-                    onSuccess()
-                }
-            }) {
-                Text("Salvar")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
         }
-    )
+    }
 }
 '''
 
-# 19. FreteFormScreen.kt
+# 21. FreteFormScreen.kt
 A["app/src/main/java/com/gerfrota/fretes/ui/FreteFormScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import android.app.Activity
 import android.speech.RecognizerIntent
@@ -1405,12 +1197,8 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
         val intent = VoiceInputHelper.createIntent().apply { putExtra(RecognizerIntent.EXTRA_PROMPT, prompt) }
         voiceLauncher.launch(intent)
     }
-    Scaffold(topBar = {
-        TopAppBar(title = { Text(if (isEdit) "Editar Frete" else "Novo Frete") },
-            navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } })
-    }) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Scaffold(topBar = { TopAppBar(title = { Text(text = if (isEdit) "Editar Frete" else "Novo Frete") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } }) }) { padding ->
+        Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             VoiceField("Data", data, { data = it }, "data", "Fale a data", ::askVoice)
             VoiceField("Transportadora", transportadora, { transportadora = it }, "transportadora", "Fale o nome da transportadora", ::askVoice)
             VoiceField("Origem", origem, { origem = it }, "origem", "Fale a cidade de origem", ::askVoice)
@@ -1419,22 +1207,10 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
             val placas by repo.placasLista.collectAsState(initial = emptyList())
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(expanded, onExpandedChange = { expanded = it }) {
-                OutlinedTextField(
-                    value = placa, onValueChange = { placa = it },
-                    modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }
-                )
+                OutlinedTextField(value = placa, onValueChange = { placa = it }, modifier = Modifier.menuAnchor().fillMaxWidth(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) })
                 ExposedDropdownMenu(expanded, onDismissRequest = { expanded = false }) {
-                    if (placas.isEmpty()) {
-                        DropdownMenuItem(
-                            text = { Text("Nenhuma placa cadastrada", color = Color.Gray) },
-                            onClick = {}
-                        )
-                    } else {
-                        placas.forEach { p ->
-                            DropdownMenuItem(text = { Text(p) }, onClick = { placa = p; expanded = false })
-                        }
-                    }
+                    if (placas.isEmpty()) DropdownMenuItem(text = { Text(text = "Nenhuma placa cadastrada", color = Color.Gray) }, onClick = {})
+                    else placas.forEach { p -> DropdownMenuItem(text = { Text(p) }, onClick = { placa = p; expanded = false }) }
                 }
             }
             VoiceField("Valor do Frete (R$)", valorStr, { valorStr = it }, "valor", "Fale o valor", ::askVoice, KeyboardType.Decimal)
@@ -1442,196 +1218,96 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
             Text("Forma Pagto Adiantamento", style = MaterialTheme.typography.labelMedium)
             var exp1 by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(exp1, onExpandedChange = { exp1 = it }) {
-                OutlinedTextField(value = formaAdiant, onValueChange = {},
-                    modifier = Modifier.menuAnchor().fillMaxWidth(), readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(exp1) })
-                ExposedDropdownMenu(exp1, onDismissRequest = { exp1 = false }) {
-                    FormasPagamento.opcoes.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { formaAdiant = o; exp1 = false }) }
-                }
+                OutlinedTextField(value = formaAdiant, onValueChange = {}, modifier = Modifier.menuAnchor().fillMaxWidth(), readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(exp1) })
+                ExposedDropdownMenu(exp1, onDismissRequest = { exp1 = false }) { FormasPagamento.opcoes.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { formaAdiant = o; exp1 = false }) } }
             }
             Text("Forma Pagto Saldo", style = MaterialTheme.typography.labelMedium)
             var exp2 by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(exp2, onExpandedChange = { exp2 = it }) {
-                OutlinedTextField(value = formaSaldo, onValueChange = {},
-                    modifier = Modifier.menuAnchor().fillMaxWidth(), readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(exp2) })
-                ExposedDropdownMenu(exp2, onDismissRequest = { exp2 = false }) {
-                    FormasPagamento.opcoes.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { formaSaldo = o; exp2 = false }) }
-                }
+                OutlinedTextField(value = formaSaldo, onValueChange = {}, modifier = Modifier.menuAnchor().fillMaxWidth(), readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(exp2) })
+                ExposedDropdownMenu(exp2, onDismissRequest = { exp2 = false }) { FormasPagamento.opcoes.forEach { o -> DropdownMenuItem(text = { Text(o) }, onClick = { formaSaldo = o; exp2 = false }) } }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = recebido, onCheckedChange = { recebido = it })
-                Text("Ja Recebido (SIM)")
+            Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(checked = recebido, onCheckedChange = { recebido = it }); Text(text = "Recebido (diminui saldo)", fontWeight = FontWeight.Bold) }
+            if (recebido) Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Text(text = "Ao marcar como recebido, o saldo será zerado", modifier = Modifier.padding(12.dp), fontSize = 12.sp)
             }
             Spacer(Modifier.height(16.dp))
             val valor = valorStr.toDoubleOrNull() ?: 0.0
             val adiant = adiantStr.toDoubleOrNull() ?: 0.0
-            val saldo = valor - adiant
+            val saldo = if (recebido) 0.0 else (valor - adiant)
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                 Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Saldo do Frete:", fontWeight = FontWeight.Bold)
-                    Text(NumberFormat.getCurrencyInstance(Locale("pt","BR")).format(saldo).toString(),
-                        fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text(text = "Saldo do Frete:", fontWeight = FontWeight.Bold)
+                    Text(text = NumberFormat.getCurrencyInstance(Locale("pt","BR")).format(saldo).toString(), fontWeight = FontWeight.Bold, color = if (recebido) Color.Green else MaterialTheme.colorScheme.primary)
                 }
             }
             Button(onClick = {
                 if (salvando) return@Button
                 salvando = true
                 scope.launch {
-                    val entity = FreteEntity(id = freteParaEditar?.id ?: 0,
-                        data = data, placa = placa, valorFrete = valor,
-                        adiantamento = adiant, formaPgtoAdiant = formaAdiant,
-                        saldoFrete = saldo, formaPgtoSaldo = formaSaldo,
-                        recebido = recebido, transportadora = transportadora,
-                        origem = origem, destino = destino)
+                    val entity = FreteEntity(id = freteParaEditar?.id ?: 0, data = data, placa = placa, valorFrete = valor, adiantamento = adiant, formaPgtoAdiant = formaAdiant,
+                        saldoFrete = saldo, formaPgtoSaldo = formaSaldo, recebido = recebido, transportadora = transportadora, origem = origem, destino = destino)
                     if (isEdit) repo.update(entity) else repo.insert(entity)
                     onBack()
                 }
             }, modifier = Modifier.fillMaxWidth().height(56.dp), enabled = !salvando) {
-                Text(if (isEdit) "ATUALIZAR FRETE" else "SALVAR FRETE", fontSize = 16.sp)
+                Text(text = if (isEdit) "ATUALIZAR FRETE" else "SALVAR FRETE", fontSize = 16.sp)
             }
             Spacer(Modifier.height(24.dp))
         }
     }
 }
 @Composable
-fun VoiceField(label: String, value: String, onChange: (String) -> Unit,
-    voiceKey: String, voicePrompt: String, askVoice: (String, String) -> Unit,
-    keyboard: KeyboardType = KeyboardType.Text) {
+fun VoiceField(label: String, value: String, onChange: (String) -> Unit, voiceKey: String, voicePrompt: String, askVoice: (String, String) -> Unit, keyboard: KeyboardType = KeyboardType.Text) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(value = value, onValueChange = onChange, label = { Text(label) },
-            modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = keyboard))
+        OutlinedTextField(value = value, onValueChange = onChange, label = { Text(text = label) }, modifier = Modifier.weight(1f), keyboardOptions = KeyboardOptions(keyboardType = keyboard))
         Spacer(Modifier.width(8.dp))
-        IconButton(onClick = { askVoice(voiceKey, voicePrompt) }, modifier = Modifier.size(48.dp)) {
-            Icon(Icons.Default.Mic, "Falar", tint = MaterialTheme.colorScheme.primary)
-        }
+        IconButton(onClick = { askVoice(voiceKey, voicePrompt) }, modifier = Modifier.size(48.dp)) { Icon(Icons.Default.Mic, "Falar", tint = MaterialTheme.colorScheme.primary) }
     }
 }
 '''
 
-A["app/src/main/java/com/gerfrota/fretes/ui/RelatoriosScreen.kt"] = r'''package com.gerfrota.fretes.ui
-import android.widget.Toast
+# 22. SaldoReceberScreen.kt
+A["app/src/main/java/com/gerfrota/fretes/ui/SaldoReceberScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gerfrota.fretes.data.PdfExporter
 import com.gerfrota.fretes.data.Repository
-import kotlinx.coroutines.launch
 import java.text.NumberFormat
-import java.util.*
+import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RelatoriosScreen(repo: Repository, onBack: () -> Unit) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val fretes by repo.fretes.collectAsState(initial = emptyList())
-    val fretesNaoRecebidos by repo.fretesNaoRecebidos.collectAsState(initial = emptyList())
-    val totalAdiant by repo.totalAdiantamentos.collectAsState(initial = 0.0)
-    val resumoAdiant by repo.resumoAdiantamentoPorForma.collectAsState(initial = emptyList())
-    val resumoSaldo by repo.resumoSaldoPorForma.collectAsState(initial = emptyList())
-    var gerando by remember { mutableStateOf(false) }
-    var tipoRelatorio by remember { mutableStateOf("total") }
+fun SaldoReceberScreen(repo: Repository, onBack: () -> Unit) {
+    val lista by repo.saldoPorTransportadora.collectAsState(initial = emptyList())
+    val total by repo.saldoTotal.collectAsState(initial = 0.0)
     val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(text = "Relatorios") },
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } }
-            )
-        }
-    ) { padding ->
-        Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(text = "Relatorios PDF", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "Escolha o tipo e gere em PDF", fontSize = 12.sp)
+    Scaffold(topBar = { TopAppBar(title = { Text(text = "Saldo a Receber") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } }) }) { padding ->
+        Column(Modifier.padding(padding).fillMaxSize()) {
+            Card(modifier = Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
+                Column(Modifier.padding(20.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(text = "TOTAL GERAL A RECEBER", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold)
+                    Text(text = nf.format(total ?: 0.0).toString(), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            Text(text = "Tipo de Relatorio", fontWeight = FontWeight.Bold)
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = tipoRelatorio == "total", onClick = { tipoRelatorio = "total" },
-                    label = { Text(text = "Total") })
-                FilterChip(selected = tipoRelatorio == "periodo", onClick = { tipoRelatorio = "periodo" },
-                    label = { Text(text = "Periodo") })
-                FilterChip(selected = tipoRelatorio == "adiant_forma", onClick = { tipoRelatorio = "adiant_forma" },
-                    label = { Text(text = "Adiant. por Forma") })
-                FilterChip(selected = tipoRelatorio == "saldo_forma", onClick = { tipoRelatorio = "saldo_forma" },
-                    label = { Text(text = "Saldo por Forma") })
-            }
-            Spacer(Modifier.height(16.dp))
-            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(text = "Resumo Geral", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text(text = "Total de fretes: ${fretes.size}", fontSize = 12.sp)
-                    Text(text = "Fretes nao recebidos: ${fretesNaoRecebidos.size}", fontSize = 12.sp)
-                    Text(text = "Total adiantamentos: ${nf.format(totalAdiant ?: 0.0)}", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            }
-            if (tipoRelatorio == "adiant_forma") {
-                Spacer(Modifier.height(16.dp))
-                Text(text = "Adiantamentos por Forma de Pagamento", fontWeight = FontWeight.Bold)
-                if (resumoAdiant.isEmpty()) {
-                    Text(text = "Nenhum adiantamento registrado", color = androidx.compose.ui.graphics.Color.Gray, modifier = Modifier.padding(8.dp))
-                } else {
-                    resumoAdiant.forEach { r ->
-                        Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                            Row(Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = r.formaPagto, fontWeight = FontWeight.Bold)
-                                Text(text = "${r.totalFretes}x ${nf.format(r.totalValor)}", fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary)
-                            }
+            Text(text = "  Por Transportadora", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            LazyColumn(Modifier.padding(horizontal = 16.dp)) {
+                items(lista) { item ->
+                    Card(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = item.transportadora.ifBlank { "(sem nome)" }, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                            Text(text = nf.format(item.total).toString(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error, fontSize = 18.sp)
                         }
                     }
-                }
-            }
-            if (tipoRelatorio == "saldo_forma") {
-                Spacer(Modifier.height(16.dp))
-                Text(text = "Saldo a Receber por Forma de Pagamento", fontWeight = FontWeight.Bold)
-                if (resumoSaldo.isEmpty()) {
-                    Text(text = "Nenhum saldo pendente", color = androidx.compose.ui.graphics.Color.Gray, modifier = Modifier.padding(8.dp))
-                } else {
-                    resumoSaldo.forEach { r ->
-                        Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                            Row(Modifier.padding(12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = r.formaPagto, fontWeight = FontWeight.Bold)
-                                Text(text = "${r.totalFretes}x ${nf.format(r.totalValor)}", fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.height(24.dp))
-            Button(onClick = {
-                if (gerando) return@Button
-                gerando = true
-                scope.launch {
-                    val resultado = when (tipoRelatorio) {
-                        "adiant_forma" -> PdfExporter.exportarAdiantamentoPorForma(context, resumoAdiant, fretes)
-                        "saldo_forma" -> PdfExporter.exportarSaldoPorForma(context, resumoSaldo, fretes)
-                        else -> PdfExporter.exportar(context, fretes, "Relatorio Completo")
-                    }
-                    gerando = false
-                    Toast.makeText(context, if (resultado.success) "Relatorio gerado!" else resultado.message, Toast.LENGTH_LONG).show()
-                }
-            }, modifier = Modifier.fillMaxWidth().height(56.dp), enabled = !gerando) {
-                if (gerando) CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
-                else {
-                    Icon(Icons.Default.PictureAsPdf, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(text = "GERAR RELATORIO PDF", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1639,7 +1315,7 @@ fun RelatoriosScreen(repo: Repository, onBack: () -> Unit) {
 }
 '''
 
-# 21. VoiceInputHelper.kt
+# 23. VoiceInputHelper.kt
 A["app/src/main/java/com/gerfrota/fretes/ui/VoiceInputHelper.kt"] = r'''package com.gerfrota.fretes.ui
 import android.content.Intent
 import android.speech.RecognizerIntent
@@ -1652,28 +1328,20 @@ object VoiceInputHelper {
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
     }
     fun parseNumber(text: String): String {
-        val cleaned = text.lowercase(Locale("pt","BR"))
-            .replace("reais", "").replace("real", "")
-            .replace("virgula", ",").replace("ponto", ".").trim()
+        val cleaned = text.lowercase(Locale("pt","BR")).replace("reais", "").replace("real", "").replace("virgula", ",").replace("ponto", ".").trim()
         val regex = Regex("[0-9]+([.,][0-9]+)?")
         return regex.find(cleaned)?.value ?: cleaned
     }
 }
 '''
 
-# 22. MainActivity.kt
+# 24. MainActivity.kt
 A["app/src/main/java/com/gerfrota/fretes/MainActivity.kt"] = r'''package com.gerfrota.fretes
-
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -1683,28 +1351,24 @@ import com.gerfrota.fretes.data.AppDatabase
 import com.gerfrota.fretes.data.AuthManager
 import com.gerfrota.fretes.data.Repository
 import com.gerfrota.fretes.ui.*
-
 class MainActivity : ComponentActivity() {
     private val repo by lazy {
         val db = AppDatabase.get(this)
         Repository(db.freteDao(), db.placaDao())
     }
     private val freteEditTarget = mutableStateOf<Long?>(null)
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
                 val nav = rememberNavController()
                 var loggedEmail by remember { mutableStateOf<String?>(null) }
-                
                 LaunchedEffect(Unit) {
                     if (AuthManager.isLogged(this@MainActivity)) {
                         loggedEmail = AuthManager.getEmail(this@MainActivity)
                         nav.navigate("home") { popUpTo("login") { inclusive = true } }
                     }
                 }
-                
                 NavHost(nav, startDestination = "login") {
                     composable("login") {
                         LoginScreen(repo = repo, onLoginSuccess = {
@@ -1717,9 +1381,10 @@ class MainActivity : ComponentActivity() {
                             repo = repo, userEmail = loggedEmail ?: "",
                             onAddClick = { nav.navigate("form") },
                             onEditClick = { f -> freteEditTarget.value = f.id; nav.navigate("form?edit=1") },
-                            onSaldoClick = { nav.navigate("saldo") },
                             onPlacasClick = { nav.navigate("placas") },
-                            onGerenciarPlacasClick = { nav.navigate("gerenciar_placas") },
+                            onFretesClick = { nav.navigate("fretes") },
+                            onRelatoriosClick = { nav.navigate("relatorios") },
+                            onBackupClick = { nav.navigate("backup") },
                             onLogout = {
                                 AuthManager.logout(this@MainActivity)
                                 loggedEmail = null
@@ -1728,33 +1393,27 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("placas") { PlacasScreen(repo) { nav.popBackStack() } }
-                    composable("gerenciar_placas") { GerenciarPlacasScreen(repo) { nav.popBackStack() } }
+                    composable("fretes") { nav.popBackStack() }
+                    composable("relatorios") { RelatoriosScreen(repo) { nav.popBackStack() } }
+                    composable("backup") { BackupScreen(repo) { nav.popBackStack() } }
                     composable("saldo") { SaldoReceberScreen(repo) { nav.popBackStack() } }
-                    composable("form?edit={edit}", arguments = listOf(navArgument("edit") {
-                        type = NavType.StringType; defaultValue = "0"
-                    })) { backStackEntry ->
+                    composable("form?edit={edit}", arguments = listOf(navArgument("edit") { type = NavType.StringType; defaultValue = "0" })) { backStackEntry ->
                         val isEdit = backStackEntry.arguments?.getString("edit") == "1"
                         val targetId = freteEditTarget.value
                         var frete by remember { mutableStateOf<com.gerfrota.fretes.data.FreteEntity?>(null) }
                         var loaded by remember { mutableStateOf(!isEdit) }
-                        
                         LaunchedEffect(targetId, isEdit) {
                             if (isEdit && targetId != null) {
                                 frete = repo.getById(targetId)
                                 loaded = true
                             }
                         }
-                        
                         if (!loaded) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) { 
-                                CircularProgressIndicator() 
+                            androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                                androidx.compose.material3.CircularProgressIndicator()
                             }
                         } else {
-                            FreteFormScreen(repo = repo, freteParaEditar = if (isEdit) frete else null,
-                                onBack = { freteEditTarget.value = null; nav.popBackStack() })
+                            FreteFormScreen(repo = repo, freteParaEditar = if (isEdit) frete else null, onBack = { freteEditTarget.value = null; nav.popBackStack() })
                         }
                     }
                 }
@@ -1764,11 +1423,9 @@ class MainActivity : ComponentActivity() {
 }
 '''
 
-# 23-28. Recursos
+# 25-30. Recursos
 A["app/src/main/res/drawable/ic_truck_logo.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp" android:height="108dp"
-    android:viewportWidth="108" android:viewportHeight="108">
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
     <path android:fillColor="#1976D2" android:pathData="M0,0h108v108h-108z"/>
     <path android:fillColor="#0D47A1" android:pathData="M0,54 L108,54 L108,108 L0,108z"/>
     <path android:fillColor="#FFFFFF" android:pathData="M20,60 L20,40 L60,40 L60,50 L75,50 L85,60 L85,72 L80,72 A8,8 0 0,1 64,72 L44,72 A8,8 0 0,1 28,72 L20,72 Z"/>
@@ -1780,9 +1437,7 @@ A["app/src/main/res/drawable/ic_truck_logo.xml"] = r'''<?xml version="1.0" encod
     <path android:fillColor="#FFC107" android:pathData="M51,45 L58,45 L58,55 L51,55 Z"/>
 </vector>
 '''
-
-A["app/src/main/res/values/colors.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
-<resources>
+A["app/src/main/res/values/colors.xml"] = r'''<?xml version="1.0" encoding="utf-8"?><resources>
     <color name="ic_launcher_background">#1976D2</color>
     <color name="primary">#1976D2</color>
     <color name="primary_dark">#0D47A1</color>
@@ -1790,33 +1445,23 @@ A["app/src/main/res/values/colors.xml"] = r'''<?xml version="1.0" encoding="utf-
     <color name="success">#4CAF50</color>
 </resources>
 '''
-
-A["app/src/main/res/values/strings.xml"] = r'''<resources>
-    <string name="app_name">GerFrota Fretes</string>
-</resources>
+A["app/src/main/res/values/strings.xml"] = r'''<resources><string name="app_name">GerFrota Fretes</string></resources>
 '''
-
-A["app/src/main/res/values/themes.xml"] = r'''<resources>
-    <style name="Theme.GerFrotaFretes" parent="android:Theme.Material.Light.NoActionBar"/>
-</resources>
+A["app/src/main/res/values/themes.xml"] = r'''<resources><style name="Theme.GerFrotaFretes" parent="android:Theme.Material.Light.NoActionBar"/></resources>
 '''
-
-A["app/src/main/res/xml/file_paths.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
-<paths>
+A["app/src/main/res/xml/file_paths.xml"] = r'''<?xml version="1.0" encoding="utf-8"?><paths>
     <external-path name="external_files" path="."/>
     <external-files-path name="external_files2" path="."/>
     <cache-path name="cache" path="."/>
     <files-path name="files" path="."/>
 </paths>
 '''
-
 A["app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background"/>
     <foreground android:drawable="@drawable/ic_truck_logo"/>
 </adaptive-icon>
 '''
-
 A["app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background"/>
@@ -1829,8 +1474,8 @@ A["app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"] = r'''<?xml versio
 # ============================================================
 def criar_projeto():
     print("=" * 60)
-    print("  GERADOR DO PROJETO GerFrota Fretes")
-    print("  Versao Final - 100% Completo")
+    print("  GERADOR DO PROJETO GerFrota Fretes v2.1")
+    print("  Versao Final Completa (Formas de Pagto + Relatorios)")
     print("=" * 60)
     print()
     if os.path.exists(PROJETO):
