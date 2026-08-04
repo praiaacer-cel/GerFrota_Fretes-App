@@ -1,22 +1,52 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-=============================================================
-  GERADOR DO PROJETO GerFrota Fretes - VERSÃO FINAL
-=============================================================
-  App Android para controle de fretes com:
-  • Backup local automático (JSON)
-  • Compartilhamento via apps (WhatsApp, Drive, E-mail)
-  • Cadastro dinâmico de placas
-  • Entrada por voz
-  • Exportação PDF
-  • 5 placas pré-cadastradas
-  • 10 formas de pagamento
-  
-  USO:  python criar_gerfrota_fretes.py
-=============================================================
+GerFrota Fretes - Project Generator Script
+==========================================
+
+This script automatically generates the complete Android project structure 
+for the "GerFrota Fretes" application. It creates all necessary Kotlin, 
+XML, and Gradle files required to build the app locally or via CI/CD.
+
+Features of the generated app:
+- Local login system (email + password)
+- Dynamic license plate management (CRUD)
+- Local JSON backup and restore
+- PDF export and sharing (WhatsApp, Email, Drive)
+- Voice input for freight data
+- Freight tracking by license plate and carrier
+
+Usage:
+    python3 criar_gerfrota_fretes.py
+
+Requirements:
+    - Python 3.6+
+    - No external dependencies required (uses standard library)
+
+Generated Structure:
+    GerFrotaFretesApp/
+    ├── app/
+    │   ├── build.gradle.kts
+    │   └── src/main/
+    │       ├── AndroidManifest.xml
+    │       ├── java/com/gerfrota/fretes/
+    │       │   ├── MainActivity.kt
+    │       │   ├── data/ (Entities, DAOs, Repository, Backup)
+    │       │   ├── ui/ (Compose Screens)
+    │       │   └── drive/ (Backup Manager)
+    │       └── res/ (Resources, Drawables, Values)
+    ├── build.gradle.kts
+    ├── settings.gradle.kts
+    └── gradle.properties
+
+Author: GerFrota Development Team
+Version: 1.0.0
 """
 
+import os
+import sys
+
+# ... (o resto do seu código continua aqui) ...
 import os
 import sys
 
@@ -1765,7 +1795,8 @@ ARQUIVOS["app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"] = r'''<?xml
 '''
 
 # ============================================================
-# FUNÇÃO PRINCIPAL
+# MAIN EXECUTION FUNCTION
+# Creates the directory structure and writes all project files
 # ============================================================
 def criar_projeto():
     print("=" * 60)
