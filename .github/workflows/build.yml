@@ -35,35 +35,38 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
-    - name: Create Gradle Wrapper
+    - name: Validate Gradle Wrapper
+      uses: gradle/wrapper-validation-action@v2
+
+    - name: Create Gradle Wrapper (if missing)
       working-directory: GerFrotaFretesApp
       run: |
-        echo "Creating Gradle Wrapper..."
-        mkdir -p gradle/wrapper
+        if [ ! -f "gradlew" ]; then
+          echo "Creating Gradle Wrapper..."
+          mkdir -p gradle/wrapper
+          
+          cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
+          networkTimeout=10000
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          EOF
 
-        cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
-        distributionBase=GRADLE_USER_HOME
-        distributionPath=wrapper/dists
-        distributionUrl=https\://services.gradle.org/distributions/gradle-8.4-bin.zip
-        networkTimeout=10000
-        zipStoreBase=GRADLE_USER_HOME
-        zipStorePath=wrapper/dists
-        EOF
+          curl -L -o gradle/wrapper/gradle-wrapper.jar \
+            "https://github.com/gradle/gradle/raw/v8.4.0/gradle/wrapper/gradle-wrapper.jar"
 
-        curl -L -o gradle/wrapper/gradle-wrapper.jar \
-          "https://github.com/gradle/gradle/raw/v8.4.0/gradle/wrapper/gradle-wrapper.jar" || {
-            echo "Failed to download gradle-wrapper.jar"
-            exit 1
-          }
-
-        cat > gradlew << 'GRADLEW'
-        #!/bin/sh
-        APP_HOME="$(cd "$(dirname "$0")" && pwd)"
-        CLASSPATH="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
-        exec java -Xmx2048m -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
-        GRADLEW
-        chmod +x gradlew
-
+          cat > gradlew << 'GRADLEW'
+          #!/bin/sh
+          APP_HOME="$(cd "$(dirname "$0")" && pwd)"
+          CLASSPATH="$APP_HOME/gradle/wrapper/gradle-wrapper.jar"
+          exec java -Xmx2048m -classpath "$CLASSPATH" org.gradle.wrapper.GradleWrapperMain "$@"
+          GRADLEW
+          chmod +x gradlew
+        fi
+        
+        echo "Verifying Gradle Wrapper files..."
         ls -la gradle/wrapper/
         ls -la gradlew
 
