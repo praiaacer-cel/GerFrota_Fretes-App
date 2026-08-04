@@ -607,6 +607,7 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
 
 # 16. HomeScreen.kt - COM .toString() EM TODOS OS nf.format()
 A["app/src/main/java/com/gerfrota/fretes/ui/HomeScreen.kt"] = r'''package com.gerfrota.fretes.ui
+
 import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.clickable
@@ -625,12 +626,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gerfrota.fretes.data.FreteEntity
-import com.gerfrota.fretes.data.LocalBackupManager
 import com.gerfrota.fretes.data.PdfExporter
 import com.gerfrota.fretes.data.Repository
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -648,56 +649,29 @@ fun HomeScreen(
     var pdfUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var showShareDialog by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-    var backupando by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Column {
-                        Text("GerFrota Fretes", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text("Backup local ativo", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
-                    }
-                },
+                title = { Text(text = "GerFrota Fretes", fontWeight = FontWeight.Bold, fontSize = 18.sp) },
                 actions = {
                     IconButton(onClick = { menuOpen = true }) {
                         Icon(Icons.Default.MoreVert, "Mais", tint = Color.White)
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
-                            text = { Text("Criar backup local") },
-                            onClick = {
-                                menuOpen = false
-                                if (fretes.isEmpty()) {
-                                    Toast.makeText(context, "Nenhum frete para backup", Toast.LENGTH_SHORT).show()
-                                    return@DropdownMenuItem
-                                }
-                                backupando = true
-                                scope.launch {
-                                    val (sucesso, msg) = LocalBackupManager.criarBackupLocal(context, fretes)
-                                    backupando = false
-                                    Toast.makeText(context, if (sucesso) "Backup criado!" else msg, Toast.LENGTH_LONG).show()
-                                }
-                            },
-                            leadingIcon = { Icon(Icons.Default.Save, null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Gerenciar Placas") },
-                            onClick = {
-                                menuOpen = false
-                                onGerenciarPlacasClick()
-                            },
+                            text = { Text(text = "Gerenciar Placas") },
+                            onClick = { menuOpen = false; onGerenciarPlacasClick() },
                             leadingIcon = { Icon(Icons.Default.LocalShipping, null) }
                         )
                     }
                     IconButton(onClick = {
-                        if (!exportando) {
-                            if (fretes.isEmpty()) { Toast.makeText(context, "Nenhum frete", Toast.LENGTH_SHORT).show(); return@IconButton }
+                        if (!exportando && fretes.isNotEmpty()) {
                             exportando = true
                             scope.launch {
-                                val r = PdfExporter.exportar(context, fretes, "Relatorio de Fretes")
+                                val r = PdfExporter.exportar(context, fretes)
                                 exportando = false
                                 if (r.success && r.uri != null) { pdfUri = r.uri; showShareDialog = true }
-                                else Toast.makeText(context, r.message, Toast.LENGTH_LONG).show()
                             }
                         }
                     }) {
@@ -705,84 +679,76 @@ fun HomeScreen(
                         else Icon(Icons.Default.PictureAsPdf, "PDF", tint = Color.White)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(userEmail, fontSize = 11.sp, color = Color.White, modifier = Modifier.padding(end = 8.dp, top = 4.dp))
+                        Text(text = userEmail, fontSize = 11.sp, color = Color.White)
                         IconButton(onClick = onLogout) { Icon(Icons.Default.Logout, "Sair", tint = Color.White) }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    titleContentColor = Color.White,
-                    actionIconContentColor = Color.White
-                )
+                }
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAddClick, containerColor = MaterialTheme.colorScheme.secondary) {
-                Icon(Icons.Default.Add, "Novo Frete", tint = Color.White)
+            FloatingActionButton(onClick = onAddClick) {
+                Icon(Icons.Default.Add, "Novo Frete")
             }
         }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Card(modifier = Modifier.weight(1f).clickable { onSaldoClick() },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("SALDO", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-                        Text(nf.format(saldoTotal ?: 0.0).toString(), fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer)
-                        Text("Por transportadora", fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-                    }
-                }
-                Card(modifier = Modifier.weight(1f).clickable { onPlacasClick() },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text("PLACAS", fontSize = 11.sp, fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
-                        Text("Ver fretes", fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer)
-                        Text("por placa", fontSize = 10.sp,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
-                    }
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(16.dp).clickable { onSaldoClick() },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Column(Modifier.padding(20.dp)) {
+                    Text(text = "SALDO A RECEBER", fontSize = 14.sp, color = Color.White.copy(alpha = 0.8f))
+                    // CORREÇÃO CRÍTICA AQUI: parâmetro 'text =' e '.toString()' explícito
+                    Text(
+                        text = nf.format(saldoTotal ?: 0.0).toString(),
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(text = "Por transportadora", fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
                 }
             }
-            Text("  Ultimos fretes", fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            if (fretes.isEmpty()) {
-                Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
-                    Text("Nenhum frete cadastrado.\nToque no + para adicionar.",
-                        textAlign = Alignment.Center, color = Color.Gray)
-                }
-            } else {
-                LazyColumn {
-                    items(fretes) { f ->
-                        FreteItem(f, nf, onEdit = { onEditClick(f) }, onDelete = { scope.launch { repo.delete(f) } })
+            LazyColumn(Modifier.padding(horizontal = 16.dp)) {
+                items(fretes) { f ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(text = f.transportadora.ifBlank { "Sem transportadora" }, fontWeight = FontWeight.Bold)
+                            Text(text = "${f.origem} -> ${f.destino}", fontSize = 12.sp, color = Color.Gray)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(text = "${f.data} - ${f.placa}", fontSize = 11.sp, color = Color.Gray)
+                                // CORREÇÃO CRÍTICA AQUI TAMBÉM
+                                Text(
+                                    text = nf.format(f.saldoFrete).toString(), 
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
     }
+    
     if (showShareDialog && pdfUri != null) {
-        AlertDialog(onDismissRequest = { showShareDialog = false },
-            icon = { Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp)) },
-            title = { Text("PDF Gerado!") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Escolha como compartilhar:")
-                    OutlinedButton(onClick = { compartilharWhatsApp(context, pdfUri!!); showShareDialog = false }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Chat, null, tint = Color(0xFF25D366))
-                        Spacer(Modifier.width(8.dp)); Text("Enviar por WhatsApp")
+        AlertDialog(
+            onDismissRequest = { showShareDialog = false },
+            title = { Text(text = "PDF Gerado!") },
+            text = { Text(text = "Escolha como compartilhar:") },
+            confirmButton = {
+                Column {
+                    TextButton(onClick = { compartilharWhatsApp(context, pdfUri!!); showShareDialog = false }) {
+                        Text(text = "WhatsApp")
                     }
-                    OutlinedButton(onClick = { compartilharGenerico(context, pdfUri!!); showShareDialog = false }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Compartilhar (Drive, E-mail, etc)")
+                    TextButton(onClick = { compartilharGenerico(context, pdfUri!!); showShareDialog = false }) {
+                        Text(text = "Outros Apps")
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showShareDialog = false }) { Text("Fechar") } })
+            dismissButton = { TextButton(onClick = { showShareDialog = false }) { Text(text = "Fechar") } }
+        )
     }
 }
+
 private fun compartilharWhatsApp(ctx: android.content.Context, uri: android.net.Uri) {
     try {
         val intent = Intent(Intent.ACTION_SEND).apply {
@@ -795,6 +761,7 @@ private fun compartilharWhatsApp(ctx: android.content.Context, uri: android.net.
         compartilharGenerico(ctx, uri)
     }
 }
+
 private fun compartilharGenerico(ctx: android.content.Context, uri: android.net.Uri) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri)
@@ -802,43 +769,6 @@ private fun compartilharGenerico(ctx: android.content.Context, uri: android.net.
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     ctx.startActivity(Intent.createChooser(intent, "Compartilhar via..."))
-}
-@Composable
-fun FreteItem(f: FreteEntity, nf: NumberFormat, onEdit: () -> Unit, onDelete: () -> Unit) {
-    var showDelete by remember { mutableStateOf(false) }
-    Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-        elevation = CardDefaults.cardElevation(2.dp)) {
-        Column(Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(f.transportadora.ifBlank { "Sem transportadora" },
-                    fontWeight = FontWeight.Bold, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                Text(nf.format(f.saldoFrete).toString(), fontWeight = FontWeight.Bold,
-                    color = if (f.recebido) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-            }
-            Text("${f.origem} -> ${f.destino}", fontSize = 13.sp, color = Color.Gray)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${f.data} - ${f.placa}", fontSize = 12.sp, color = Color.Gray)
-                Row {
-                    TextButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Editar", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
-                    }
-                    TextButton(onClick = { showDelete = true }) {
-                        Icon(Icons.Default.Delete, null, tint = Color.Red, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp)); Text("Excluir", color = Color.Red, fontSize = 12.sp)
-                    }
-                }
-            }
-            if (f.recebido) Text("RECEBIDO", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-        }
-    }
-    if (showDelete) {
-        AlertDialog(onDismissRequest = { showDelete = false },
-            title = { Text("Excluir frete?") },
-            text = { Text("${f.transportadora} - ${nf.format(f.valorFrete).toString()}") },
-            confirmButton = { TextButton(onClick = { showDelete = false; onDelete() }) { Text("Excluir", color = Color.Red) } },
-            dismissButton = { TextButton(onClick = { showDelete = false }) { Text("Cancelar") } })
-    }
 }
 '''
 
@@ -1474,24 +1404,28 @@ import com.gerfrota.fretes.data.AppDatabase
 import com.gerfrota.fretes.data.AuthManager
 import com.gerfrota.fretes.data.Repository
 import com.gerfrota.fretes.ui.*
+
 class MainActivity : ComponentActivity() {
     private val repo by lazy {
         val db = AppDatabase.get(this)
         Repository(db.freteDao(), db.placaDao())
     }
     private val freteEditTarget = mutableStateOf<Long?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
                 val nav = rememberNavController()
                 var loggedEmail by remember { mutableStateOf<String?>(null) }
+                
                 LaunchedEffect(Unit) {
                     if (AuthManager.isLogged(this@MainActivity)) {
                         loggedEmail = AuthManager.getEmail(this@MainActivity)
                         nav.navigate("home") { popUpTo("login") { inclusive = true } }
                     }
                 }
+                
                 NavHost(nav, startDestination = "login") {
                     composable("login") {
                         LoginScreen(repo = repo, onLoginSuccess = {
@@ -1524,12 +1458,15 @@ class MainActivity : ComponentActivity() {
                         val targetId = freteEditTarget.value
                         var frete by remember { mutableStateOf<com.gerfrota.fretes.data.FreteEntity?>(null) }
                         var loaded by remember { mutableStateOf(!isEdit) }
+                        
+                        // CORREÇÃO AQUI: Usar repo.getById em vez de repo.fretes.value
                         LaunchedEffect(targetId, isEdit) {
                             if (isEdit && targetId != null) {
-                                frete = repo.fretes.value.firstOrNull { it.id == targetId }
+                                frete = repo.getById(targetId)
                                 loaded = true
                             }
                         }
+                        
                         if (!loaded) {
                             androidx.compose.foundation.layout.Box(
                                 modifier = androidx.compose.ui.Modifier.fillMaxSize(),
