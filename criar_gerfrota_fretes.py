@@ -341,6 +341,7 @@ import org.json.JSONObject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+
 object LocalBackupManager {
     suspend fun criarBackupLocal(context: Context, fretes: List<FreteEntity>): Pair<Boolean, String> = withContext(Dispatchers.IO) {
         runCatching {
@@ -360,6 +361,7 @@ object LocalBackupManager {
             Pair(true, backupFile.absolutePath)
         }.getOrElse { Pair(false, "Erro: ${it.message}") }
     }
+    
     suspend fun restaurarBackupLocal(context: Context, filePath: String): Pair<Boolean, List<FreteEntity>> = withContext(Dispatchers.IO) {
         runCatching {
             val file = File(filePath)
@@ -375,7 +377,8 @@ object LocalBackupManager {
                     transportadora = obj.optString("transportadora", ""), origem = obj.optString("origem", ""),
                     destino = obj.optString("destino", ""), syncStatus = obj.optInt("syncStatus", 0)))
             }
-            Pair(true, fretes)
+            // CORREÇÃO AQUI: .toList() garante que o retorno seja List<FreteEntity> e não MutableList
+            Pair(true, fretes.toList()) 
         }.getOrElse { Pair(false, emptyList()) }
     }
 }
@@ -1071,6 +1074,7 @@ import com.gerfrota.fretes.data.LocalBackupManager
 import com.gerfrota.fretes.data.Repository
 import com.gerfrota.fretes.drive.DriveBackupManager
 import kotlinx.coroutines.launch
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackupScreen(repo: Repository, onBack: () -> Unit) {
@@ -1082,6 +1086,7 @@ fun BackupScreen(repo: Repository, onBack: () -> Unit) {
     var processando by remember { mutableStateOf(false) }
     var mensagem by remember { mutableStateOf("") }
     var backupPath by remember { mutableStateOf<String?>(null) }
+    
     Scaffold(topBar = { TopAppBar(title = { Text(text = "Backup - 3 Etapas") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } }) }) { padding ->
         Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
@@ -1089,32 +1094,42 @@ fun BackupScreen(repo: Repository, onBack: () -> Unit) {
                     Text(text = "Siga as 3 etapas para backup completo", fontSize = 12.sp) }
             }
             Spacer(Modifier.height(24.dp))
+            
             StepCard(numero = 1, titulo = "Gerar Arquivo de Backup", descricao = "Cria arquivo JSON com todos os fretes", icone = Icons.Default.Save, ativo = etapa == 1,
                 acao = { processando = true; scope.launch {
                     val (sucesso, path) = LocalBackupManager.criarBackupLocal(context, fretes); processando = false
-                    if (sucesso) { backupPath = path; etapa = 2; mensagem = "Backup gerado: $path" } else { mensagem = "Erro ao gerar backup" }
+                    if (sucesso) { backupPath = path; etapa = 2; mensagem = "Backup gerado com sucesso" } else { mensagem = "Erro ao gerar backup" }
                     Toast.makeText(context, if (sucesso) "Backup gerado!" else "Erro", Toast.LENGTH_SHORT).show()
                 }}, processando = processando && etapa == 1)
+                
             Spacer(Modifier.height(16.dp))
+            
             StepCard(numero = 2, titulo = "Upload para Google Drive", descricao = "Envia backup para sua conta Google Drive", icone = Icons.Default.CloudUpload, ativo = etapa == 2,
                 habilitado = backupPath != null, acao = { if (backupPath == null) return@StepCard; processando = true; scope.launch {
                     val resultado = driveManager.uploadBackupParaDrive(backupPath!!); processando = false
-                    when (resultado) {
-                        is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso -> { etapa = 3; mensagem = resultado.message }
-                        is com.gerfrota.fretes.drive.BackupDriveResult.Error -> { mensagem = resultado.message }
+                    // CORREÇÃO: Extração explícita da propriedade 'message'
+                    val msg = when (resultado) {
+                        is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso -> { etapa = 3; resultado.message }
+                        is com.gerfrota.fretes.drive.BackupDriveResult.Error -> resultado.message
                     }
+                    mensagem = msg
                     Toast.makeText(context, if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso) "Upload concluído!" else resultado.message, Toast.LENGTH_LONG).show()
                 }}, processando = processando && etapa == 2)
+                
             Spacer(Modifier.height(16.dp))
+            
             StepCard(numero = 3, titulo = "Download do Google Drive", descricao = "Baixa backup mais recente do Drive", icone = Icons.Default.CloudDownload, ativo = etapa == 3,
                 acao = { processando = true; scope.launch {
                     val resultado = driveManager.downloadBackupDoDrive(); processando = false
-                    when (resultado) {
-                        is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso -> { mensagem = resultado.message }
-                        is com.gerfrota.fretes.drive.BackupDriveResult.Error -> { mensagem = resultado.message }
+                    // CORREÇÃO: Extração explícita da propriedade 'message'
+                    val msg = when (resultado) {
+                        is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso -> resultado.message
+                        is com.gerfrota.fretes.drive.BackupDriveResult.Error -> resultado.message
                     }
+                    mensagem = msg
                     Toast.makeText(context, if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso) "Download concluído!" else resultado.message, Toast.LENGTH_LONG).show()
                 }}, processando = processando && etapa == 3)
+                
             Spacer(Modifier.height(24.dp))
             if (mensagem.isNotEmpty()) {
                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (etapa == 3) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer)) {
@@ -1129,6 +1144,7 @@ fun BackupScreen(repo: Repository, onBack: () -> Unit) {
         }
     }
 }
+
 @Composable
 fun StepCard(numero: Int, titulo: String, descricao: String, icone: androidx.compose.ui.graphics.vector.ImageVector, ativo: Boolean, acao: () -> Unit, processando: Boolean = false, habilitado: Boolean = true) {
     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (ativo) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant),
@@ -1354,6 +1370,8 @@ A["app/src/main/java/com/gerfrota/fretes/MainActivity.kt"] = r'''package com.ger
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize // <-- CORREÇÃO AQUI
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.navigation.NavType
@@ -1365,24 +1383,28 @@ import com.gerfrota.fretes.data.AppDatabase
 import com.gerfrota.fretes.data.AuthManager
 import com.gerfrota.fretes.data.Repository
 import com.gerfrota.fretes.ui.*
+
 class MainActivity : ComponentActivity() {
     private val repo by lazy {
         val db = AppDatabase.get(this)
         Repository(db.freteDao(), db.placaDao())
     }
     private val freteEditTarget = mutableStateOf<Long?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             MaterialTheme {
                 val nav = rememberNavController()
                 var loggedEmail by remember { mutableStateOf<String?>(null) }
+                
                 LaunchedEffect(Unit) {
                     if (AuthManager.isLogged(this@MainActivity)) {
                         loggedEmail = AuthManager.getEmail(this@MainActivity)
                         nav.navigate("home") { popUpTo("login") { inclusive = true } }
                     }
                 }
+                
                 NavHost(nav, startDestination = "login") {
                     composable("login") {
                         LoginScreen(repo = repo, onLoginSuccess = {
@@ -1411,19 +1433,23 @@ class MainActivity : ComponentActivity() {
                     composable("relatorios") { RelatoriosScreen(repo) { nav.popBackStack() } }
                     composable("backup") { BackupScreen(repo) { nav.popBackStack() } }
                     composable("saldo") { SaldoReceberScreen(repo) { nav.popBackStack() } }
-                    composable("form?edit={edit}", arguments = listOf(navArgument("edit") { type = NavType.StringType; defaultValue = "0" })) { backStackEntry ->
+                    composable("form?edit={edit}", arguments = listOf(navArgument("edit") { 
+                        type = NavType.StringType; defaultValue = "0" 
+                    })) { backStackEntry ->
                         val isEdit = backStackEntry.arguments?.getString("edit") == "1"
                         val targetId = freteEditTarget.value
                         var frete by remember { mutableStateOf<com.gerfrota.fretes.data.FreteEntity?>(null) }
                         var loaded by remember { mutableStateOf(!isEdit) }
+                        
                         LaunchedEffect(targetId, isEdit) {
                             if (isEdit && targetId != null) {
                                 frete = repo.getById(targetId)
                                 loaded = true
                             }
                         }
+                        
                         if (!loaded) {
-                            androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                            Box(modifier = androidx.compose.ui.Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
                                 androidx.compose.material3.CircularProgressIndicator()
                             }
                         } else {
