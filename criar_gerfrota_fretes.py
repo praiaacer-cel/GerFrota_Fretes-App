@@ -400,6 +400,7 @@ object LocalBackupManager {
 # 14. PdfExporter.kt
 A["app/src/main/java/com/gerfrota/fretes/data/PdfExporter.kt"] = r'''package com.gerfrota.fretes.data
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
@@ -413,8 +414,10 @@ import java.io.FileOutputStream
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
+
 object PdfExporter {
     data class PdfResult(val success: Boolean, val message: String, val uri: Uri? = null)
+
     suspend fun exportar(context: Context, fretes: List<FreteEntity>, titulo: String = "Relatorio de Fretes"): PdfResult = withContext(Dispatchers.IO) {
         runCatching {
             val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
@@ -481,6 +484,7 @@ object PdfExporter {
             PdfResult(true, "Relatorio gerado!", FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
         }.getOrElse { PdfResult(false, "Erro: ${it.message}") }
     }
+
     suspend fun exportarAdiantamentoPorForma(context: Context, resumo: List<ResumoFormaPagto>, fretes: List<FreteEntity>): PdfResult = withContext(Dispatchers.IO) {
         runCatching {
             val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
@@ -546,6 +550,7 @@ object PdfExporter {
             PdfResult(true, "Relatorio de adiantamentos gerado!", FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
         }.getOrElse { PdfResult(false, "Erro: ${it.message}") }
     }
+
     suspend fun exportarSaldoPorForma(context: Context, resumo: List<ResumoFormaPagto>, fretes: List<FreteEntity>): PdfResult = withContext(Dispatchers.IO) {
         runCatching {
             val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
@@ -610,6 +615,27 @@ object PdfExporter {
             pdf.close()
             PdfResult(true, "Relatorio de saldo gerado!", FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file))
         }.getOrElse { PdfResult(false, "Erro: ${it.message}") }
+    }
+
+    // ✅ NOVA FUNÇÃO: Compartilhar PDF via WhatsApp ou E-mail
+    fun compartilharPdf(context: Context, uri: Uri, tipo: String = "whatsapp"): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_SEND).apply {
+                type = "application/pdf"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "Relatório GerFrota Fretes")
+                putExtra(Intent.EXTRA_TEXT, "Segue o relatório de fretes GerFrota.")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                
+                if (tipo == "whatsapp") {
+                    setPackage("com.whatsapp")
+                }
+            }
+            context.startActivity(Intent.createChooser(intent, "Compartilhar via..."))
+            true
+        } catch (e: Exception) {
+            false
+        }
     }
 }
 '''
@@ -818,15 +844,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gerfrota.fretes.data.FreteEntity
-import com.gerfrota.fretes.data.PdfExporter
 import com.gerfrota.fretes.data.Repository
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(repo: Repository, userEmail: String, onAddClick: () -> Unit, onEditClick: (FreteEntity) -> Unit,
-    onPlacasClick: () -> Unit, onFretesClick: () -> Unit, onRelatoriosClick: () -> Unit, onBackupClick: () -> Unit, onLogout: () -> Unit) {
+fun HomeScreen(
+    repo: Repository, userEmail: String,
+    onAddClick: () -> Unit, onEditClick: (FreteEntity) -> Unit,
+    onPlacasClick: () -> Unit, onFretesClick: () -> Unit,
+    onRelatoriosClick: () -> Unit, onBackupClick: () -> Unit,
+    onGerenciarPlacasClick: () -> Unit, onLogout: () -> Unit
+) {
     val fretes by repo.fretes.collectAsState(initial = emptyList())
     val saldoTotal by repo.saldoTotal.collectAsState(initial = 0.0)
     val scope = rememberCoroutineScope()
@@ -848,7 +879,7 @@ fun HomeScreen(repo: Repository, userEmail: String, onAddClick: () -> Unit, onEd
             } }, actions = {
                 IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "Menu", tint = Color.White) }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text(text = "📊 Relatorios") }, onClick = { menuOpen = false; onRelatoriosClick() }, leadingIcon = { Icon(Icons.Default.PictureAsPdf, null) })
+                    DropdownMenuItem(text = { Text(text = "📊 Relatórios") }, onClick = { menuOpen = false; onRelatoriosClick() }, leadingIcon = { Icon(Icons.Default.PictureAsPdf, null) })
                     DropdownMenuItem(text = { Text(text = "💾 Backup") }, onClick = { menuOpen = false; onBackupClick() }, leadingIcon = { Icon(Icons.Default.CloudUpload, null) })
                     DropdownMenuItem(text = { Text(text = "Sair") }, onClick = { menuOpen = false; onLogout() }, leadingIcon = { Icon(Icons.Default.Logout, null) })
                 }
@@ -857,6 +888,7 @@ fun HomeScreen(repo: Repository, userEmail: String, onAddClick: () -> Unit, onEd
         floatingActionButton = { FloatingActionButton(onClick = onAddClick) { Icon(Icons.Default.Add, "Novo Frete") } }
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
+            // CARDS PRINCIPAIS
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Card(modifier = Modifier.weight(1f).clickable { onRelatoriosClick() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
                     Column(Modifier.padding(16.dp)) { Text(text = "GerFrota Fretes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -874,6 +906,16 @@ fun HomeScreen(repo: Repository, userEmail: String, onAddClick: () -> Unit, onEd
                     Icon(Icons.Default.LocalShipping, null, tint = Color.White)
                 }
             }
+            // ✅ NOVO: Botão Cadastrar Veículo/Placa
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable { onGerenciarPlacasClick() },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.inversePrimary)) {
+                Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Column { Text(text = "Cadastrar Veículo/Placa", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(text = "Gerenciar frota de veículos", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f)) }
+                    Icon(Icons.Default.AddCircle, null, tint = Color.White)
+                }
+            }
+            // FILTROS
             Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 var showTranspFilter by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(filtroTransportadora != null, onExpandedChange = { showTranspFilter = it }) {
@@ -892,6 +934,7 @@ fun HomeScreen(repo: Repository, userEmail: String, onAddClick: () -> Unit, onEd
                     }
                 }
             }
+            // SALDO A RECEBER
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                 Column(Modifier.padding(16.dp)) {
                     Text(text = "SALDO A RECEBER", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
@@ -923,9 +966,9 @@ fun HomeScreen(repo: Repository, userEmail: String, onAddClick: () -> Unit, onEd
 }
 '''
 
-# 18. PlacasScreen.kt
-A["app/src/main/java/com/gerfrota/fretes/ui/PlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
-import androidx.compose.foundation.clickable
+# 18.5. GerenciarPlacasScreen.kt (NOVO)
+A["app/src/main/java/com/gerfrota/fretes/ui/GerenciarPlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
+import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -936,68 +979,224 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.gerfrota.fretes.data.FreteEntity
-import com.gerfrota.fretes.data.PlacaResumo
+import com.gerfrota.fretes.data.PlacaEntity
 import com.gerfrota.fretes.data.Repository
-import java.text.NumberFormat
-import java.util.Locale
+import kotlinx.coroutines.launch
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PlacasScreen(repo: Repository, onBack: () -> Unit) {
-    val resumo by repo.resumoPorPlaca.collectAsState(initial = emptyList())
-    val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
-    var placaSelecionada by remember { mutableStateOf<String?>(null) }
-    Scaffold(topBar = { TopAppBar(title = { Text(text = if (placaSelecionada == null) "Fretes por Placa" else placaSelecionada!!) },
-        navigationIcon = { IconButton(onClick = { if (placaSelecionada != null) placaSelecionada = null else onBack() }) { Icon(Icons.Default.ArrowBack, "Voltar") } } ) }) { padding ->
-        if (placaSelecionada == null) {
-            Column(Modifier.padding(padding).fillMaxSize()) {
-                val totalGeral = resumo.sumOf { it.totalSaldo }
-                val fretesTotal = resumo.sumOf { it.totalFretes }
-                Card(modifier = Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                    Column(Modifier.padding(20.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "TOTAL GERAL - TODAS AS PLACAS", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                        Text(text = nf.format(totalGeral).toString(), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                        Text(text = "$fretesTotal fretes cadastrados", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+fun GerenciarPlacasScreen(repo: Repository, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val placas by repo.todasPlacas.collectAsState(initial = emptyList())
+    var showAddDialog by remember { mutableStateOf(false) }
+    var placaEditando by remember { mutableStateOf<PlacaEntity?>(null) }
+    var showDeleteConfirm by remember { mutableStateOf<PlacaEntity?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(text = "Gerenciar Placas") },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") }
+                },
+                actions = {
+                    IconButton(onClick = { showAddDialog = true }) {
+                        Icon(Icons.Default.Add, "Adicionar placa", tint = MaterialTheme.colorScheme.onPrimary)
                     }
                 }
-                LazyColumn(Modifier.padding(horizontal = 16.dp)) { items(resumo) { r -> CardPlaca(r, nf) { placaSelecionada = r.placa } } }
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = { showAddDialog = true }) {
+                Icon(Icons.Default.Add, "Nova placa")
+            }
+        }
+    ) { padding ->
+        if (placas.isEmpty()) {
+            Box(
+                modifier = Modifier.padding(padding).fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.LocalShipping, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                    Spacer(Modifier.height(16.dp))
+                    Text(text = "Nenhuma placa cadastrada", color = Color.Gray)
+                    Text(text = "Toque no + para adicionar", color = Color.Gray, fontSize = 12.sp)
+                }
             }
         } else {
-            val fretes by repo.fretesPorPlaca(placaSelecionada!!).collectAsState(initial = emptyList())
-            LazyColumn(Modifier.padding(padding).padding(horizontal = 16.dp)) { items(fretes) { f -> FreteItemPlaca(f, nf) } }
+            LazyColumn(Modifier.padding(padding).padding(horizontal = 16.dp)) {
+                items(placas) { placa ->
+                    CardPlacaItem(
+                        placa = placa,
+                        onEdit = { placaEditando = placa },
+                        onDelete = { showDeleteConfirm = placa },
+                        onToggle = {
+                            scope.launch {
+                                if (placa.ativa) repo.desativarPlaca(placa.placa)
+                                else repo.ativarPlaca(placa.placa)
+                            }
+                        }
+                    )
+                }
+            }
         }
     }
+
+    if (showAddDialog || placaEditando != null) {
+        DialogPlacaForm(
+            placaExistente = placaEditando,
+            repo = repo,
+            onDismiss = {
+                showAddDialog = false
+                placaEditando = null
+            },
+            onSuccess = {
+                showAddDialog = false
+                placaEditando = null
+                Toast.makeText(context, "Placa salva!", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
+    if (showDeleteConfirm != null) {
+        val placa = showDeleteConfirm!!
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = null },
+            icon = { Icon(Icons.Default.Warning, null, tint = Color.Red) },
+            title = { Text(text = "Excluir placa?") },
+            text = { Text(text = "A placa ${placa.placa} será removida permanentemente.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        repo.deletePlacaByNome(placa.placa)
+                        Toast.makeText(context, "Placa excluída", Toast.LENGTH_SHORT).show()
+                    }
+                    showDeleteConfirm = null
+                }) { Text(text = "Excluir", color = Color.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = null }) { Text(text = "Cancelar") }
+            }
+        )
+    }
 }
+
 @Composable
-fun CardPlaca(resumo: PlacaResumo, nf: NumberFormat, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onClick() }, elevation = CardDefaults.cardElevation(3.dp)) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.LocalShipping, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) { Text(text = resumo.placa, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    Text(text = "${resumo.totalFretes} fretes", fontSize = 12.sp, color = Color.Gray) }
-                Text(text = nf.format(resumo.totalSaldo).toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp,
-                    color = if (resumo.totalSaldo > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+fun CardPlacaItem(
+    placa: PlacaEntity,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onToggle: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.LocalShipping,
+                null,
+                tint = if (placa.ativa) MaterialTheme.colorScheme.primary else Color.Gray,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = placa.placa,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = if (placa.ativa) Color.Unspecified else Color.Gray
+                )
+                Text(
+                    text = if (placa.ativa) "Ativa" else "Inativa",
+                    fontSize = 11.sp,
+                    color = if (placa.ativa) MaterialTheme.colorScheme.primary else Color.Gray
+                )
+            }
+            IconButton(onClick = onToggle) {
+                Icon(
+                    if (placa.ativa) Icons.Default.ToggleOn else Icons.Default.ToggleOff,
+                    null,
+                    tint = if (placa.ativa) MaterialTheme.colorScheme.primary else Color.Gray
+                )
+            }
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, null, tint = MaterialTheme.colorScheme.primary)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, null, tint = Color.Red)
             }
         }
     }
 }
+
 @Composable
-fun FreteItemPlaca(f: FreteEntity, nf: NumberFormat) {
-    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-        Column(Modifier.padding(12.dp)) {
-            Text(text = f.transportadora.ifBlank { "Sem transportadora" }, fontWeight = FontWeight.Bold)
-            Text(text = "${f.origem} -> ${f.destino}", fontSize = 12.sp, color = Color.Gray)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(text = "${f.data}", fontSize = 11.sp, color = Color.Gray)
-                Text(text = nf.format(f.saldoFrete).toString(), fontWeight = FontWeight.Bold)
+fun DialogPlacaForm(
+    placaExistente: PlacaEntity?,
+    repo: Repository,
+    onDismiss: () -> Unit,
+    onSuccess: () -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var placaInput by remember { mutableStateOf(placaExistente?.placa ?: "") }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = if (placaExistente == null) "Nova Placa" else "Editar Placa") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = placaInput,
+                    onValueChange = {
+                        placaInput = it.uppercase()
+                        error = null
+                    },
+                    label = { Text(text = "Placa (ex: ABC 1D23)") },
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        capitalization = KeyboardCapitalization.Characters
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                if (error != null) {
+                    Text(text = error!!, color = Color.Red, fontSize = 12.sp)
+                }
             }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val placa = placaInput.trim()
+                if (placa.length < 7) {
+                    error = "Placa deve ter pelo menos 7 caracteres"
+                    return@TextButton
+                }
+                scope.launch {
+                    if (repo.placaExiste(placa) && placaExistente?.placa != placa) {
+                        error = "Esta placa já está cadastrada"
+                        return@launch
+                    }
+                    repo.insertPlaca(PlacaEntity(placa = placa))
+                    onSuccess()
+                }
+            }) {
+                Text(text = "Salvar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(text = "Cancelar") }
         }
-    }
+    )
 }
 '''
 
@@ -1130,99 +1329,155 @@ fun BackupScreen(repo: Repository, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val driveManager = remember { DriveBackupManager(context) }
     val fretes by repo.fretes.collectAsState(initial = emptyList())
-    var etapa by remember { mutableStateOf(1) }
     var processando by remember { mutableStateOf(false) }
     var mensagem by remember { mutableStateOf("") }
     var backupPath by remember { mutableStateOf<String?>(null) }
-    
-    Scaffold(topBar = { TopAppBar(title = { Text(text = "Backup - 3 Etapas") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } }) }) { padding ->
+    var backupRestaurado by remember { mutableStateOf<List<com.gerfrota.fretes.data.FreteEntity>?>(null) }
+
+    Scaffold(topBar = { TopAppBar(title = { Text(text = "Backup e Restauração") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, "Voltar") } }) }) { padding ->
         Column(Modifier.padding(padding).padding(16.dp).verticalScroll(rememberScrollState())) {
             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
                 Column(Modifier.padding(16.dp)) { Text(text = "Sistema de Backup", fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "Siga as 3 etapas para backup completo", fontSize = 12.sp) }
+                    Text(text = "Gerencie seus dados com segurança", fontSize = 12.sp) }
             }
             Spacer(Modifier.height(24.dp))
-            
-            StepCard(numero = 1, titulo = "Gerar Arquivo de Backup", descricao = "Cria arquivo JSON com todos os fretes", icone = Icons.Default.Save, ativo = etapa == 1,
-                acao = { processando = true; scope.launch {
-                    val (sucesso, path) = LocalBackupManager.criarBackupLocal(context, fretes)
-                    processando = false
-                    if (sucesso) { 
-                        backupPath = path
-                        etapa = 2
-                        mensagem = "Backup gerado com sucesso" 
-                    } else { 
-                        mensagem = "Erro ao gerar backup" 
+
+            // ✅ BOTÃO 1: Criar arquivo de backup
+            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Row(Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Save, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(text = "1. Criar Arquivo de Backup", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(text = "Gera arquivo JSON local com todos os fretes", fontSize = 11.sp, color = Color.Gray)
                     }
-                    Toast.makeText(context, if (sucesso) "Backup gerado!" else "Erro", Toast.LENGTH_SHORT).show()
-                }}, processando = processando && etapa == 1)
-                
-            Spacer(Modifier.height(16.dp))
-            
-            StepCard(numero = 2, titulo = "Upload para Google Drive", descricao = "Envia backup para sua conta Google Drive", icone = Icons.Default.CloudUpload, ativo = etapa == 2,
-                habilitado = backupPath != null, acao = { 
-                    if (backupPath == null) return@StepCard
-                    processando = true
-                    scope.launch {
-                        val resultado = driveManager.uploadBackupParaDrive(backupPath!!)
-                        processando = false
-                        
-                        // CORREÇÃO: Uso explícito de if/else para garantir o smart-cast e acesso à propriedade .message
-                        if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso) {
-                            etapa = 3
-                            mensagem = resultado.message
-                            Toast.makeText(context, "Upload concluído!", Toast.LENGTH_LONG).show()
-                        } else if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Error) {
-                            mensagem = resultado.message
-                            Toast.makeText(context, resultado.message, Toast.LENGTH_LONG).show()
+                    Button(onClick = {
+                        if (processando) return@Button
+                        processando = true
+                        scope.launch {
+                            val (sucesso, path) = LocalBackupManager.criarBackupLocal(context, fretes)
+                            processando = false
+                            if (sucesso) {
+                                backupPath = path
+                                mensagem = "Backup criado: $path"
+                            } else {
+                                mensagem = "Erro ao criar backup"
+                            }
+                            Toast.makeText(context, if (sucesso) "Backup criado!" else "Erro", Toast.LENGTH_SHORT).show()
                         }
+                    }, enabled = !processando) {
+                        if (processando) CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        else Text(text = "Criar")
                     }
-                }, processando = processando && etapa == 2)
-                
-            Spacer(Modifier.height(16.dp))
-            
-            StepCard(numero = 3, titulo = "Download do Google Drive", descricao = "Baixa backup mais recente do Drive", icone = Icons.Default.CloudDownload, ativo = etapa == 3,
-                acao = { processando = true; scope.launch {
-                    val resultado = driveManager.downloadBackupDoDrive()
-                    processando = false
-                    
-                    // CORREÇÃO: Uso explícito de if/else para garantir o smart-cast e acesso à propriedade .message
-                    if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso) {
-                        mensagem = resultado.message
-                        Toast.makeText(context, "Download concluído!", Toast.LENGTH_LONG).show()
-                    } else if (resultado is com.gerfrota.fretes.drive.BackupDriveResult.Error) {
-                        mensagem = resultado.message
-                        Toast.makeText(context, resultado.message, Toast.LENGTH_LONG).show()
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // ✅ BOTÃO 2: Enviar backup para Google Drive
+            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Row(Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudUpload, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(text = "2. Enviar para Google Drive", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(text = "Upload do backup para sua conta Google", fontSize = 11.sp, color = Color.Gray)
                     }
-                }}, processando = processando && etapa == 3)
-                
+                    Button(onClick = {
+                        if (backupPath == null || processando) return@Button
+                        processando = true
+                        scope.launch {
+                            val resultado = driveManager.uploadBackupParaDrive(backupPath!!)
+                            processando = false
+                            val msg = when (resultado) {
+                                is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso -> resultado.message
+                                is com.gerfrota.fretes.drive.BackupDriveResult.Error -> resultado.message
+                            }
+                            mensagem = msg
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        }
+                    }, enabled = backupPath != null && !processando) {
+                        if (processando) CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        else Text(text = "Enviar")
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // ✅ BOTÃO 3: Recuperar backup do Google Drive
+            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Row(Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CloudDownload, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(text = "3. Recuperar do Google Drive", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(text = "Baixa backup mais recente do Drive", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    Button(onClick = {
+                        if (processando) return@Button
+                        processando = true
+                        scope.launch {
+                            val resultado = driveManager.downloadBackupDoDrive()
+                            processando = false
+                            val msg = when (resultado) {
+                                is com.gerfrota.fretes.drive.BackupDriveResult.Sucesso -> resultado.message
+                                is com.gerfrota.fretes.drive.BackupDriveResult.Error -> resultado.message
+                            }
+                            mensagem = msg
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        }
+                    }, enabled = !processando) {
+                        if (processando) CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        else Text(text = "Recuperar")
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // ✅ BOTÃO 4: Recuperar dados do backup (restaurar)
+            Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                Row(Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Restore, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp))
+                    Spacer(Modifier.width(16.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(text = "4. Recuperar Dados do Backup", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(text = "Restaura fretes do arquivo de backup local", fontSize = 11.sp, color = Color.Gray)
+                    }
+                    Button(onClick = {
+                        if (backupPath == null || processando) return@Button
+                        processando = true
+                        scope.launch {
+                            val (sucesso, fretesRestaurados) = LocalBackupManager.restaurarBackupLocal(context, backupPath!!)
+                            processando = false
+                            if (sucesso) {
+                                backupRestaurado = fretesRestaurados
+                                mensagem = "Backup restaurado: ${fretesRestaurados.size} fretes"
+                                // Aqui você pode implementar a lógica para inserir os fretes restaurados no banco
+                                fretesRestaurados.forEach { repo.insert(it) }
+                            } else {
+                                mensagem = "Erro ao restaurar backup"
+                            }
+                            Toast.makeText(context, if (sucesso) "Backup restaurado!" else "Erro", Toast.LENGTH_SHORT).show()
+                        }
+                    }, enabled = backupPath != null && !processando) {
+                        if (processando) CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                        else Text(text = "Restaurar")
+                    }
+                }
+            }
+
             Spacer(Modifier.height(24.dp))
+
             if (mensagem.isNotEmpty()) {
-                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (etapa == 3) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer)) {
+                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                     Text(text = mensagem, modifier = Modifier.padding(16.dp), fontSize = 12.sp)
                 }
             }
-            Spacer(Modifier.height(16.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { etapa = 1 }, modifier = Modifier.weight(1f), enabled = etapa > 1) { Text(text = "Reiniciar") }
-                Button(onClick = onBack, modifier = Modifier.weight(1f)) { Text(text = "Concluir") }
-            }
-        }
-    }
-}
 
-@Composable
-fun StepCard(numero: Int, titulo: String, descricao: String, icone: androidx.compose.ui.graphics.vector.ImageVector, ativo: Boolean, acao: () -> Unit, processando: Boolean = false, habilitado: Boolean = true) {
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = if (ativo) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant),
-        border = if (ativo) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null) {
-        Row(Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icone, null, tint = if (ativo) MaterialTheme.colorScheme.primary else Color.Gray, modifier = Modifier.size(40.dp))
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) { Text(text = "Etapa $numero: $titulo", fontWeight = FontWeight.Bold, fontSize = 14.sp); Text(text = descricao, fontSize = 11.sp, color = Color.Gray) }
-            Button(onClick = acao, enabled = habilitado && !processando) {
-                if (processando) CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary)
-                else Text(text = "Executar")
-            }
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(text = "Concluir") }
         }
     }
 }
@@ -1437,7 +1692,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize // <-- CORREÇÃO AQUI
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.navigation.NavType
@@ -1487,6 +1742,7 @@ class MainActivity : ComponentActivity() {
                             onFretesClick = { nav.navigate("fretes") },
                             onRelatoriosClick = { nav.navigate("relatorios") },
                             onBackupClick = { nav.navigate("backup") },
+                            onGerenciarPlacasClick = { nav.navigate("gerenciar_placas") },
                             onLogout = {
                                 AuthManager.logout(this@MainActivity)
                                 loggedEmail = null
@@ -1495,6 +1751,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable("placas") { PlacasScreen(repo) { nav.popBackStack() } }
+                    composable("gerenciar_placas") { GerenciarPlacasScreen(repo) { nav.popBackStack() } }
                     composable("fretes") { nav.popBackStack() }
                     composable("relatorios") { RelatoriosScreen(repo) { nav.popBackStack() } }
                     composable("backup") { BackupScreen(repo) { nav.popBackStack() } }
