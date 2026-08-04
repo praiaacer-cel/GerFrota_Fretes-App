@@ -1,46 +1,49 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-GerFrota Fretes - Project Generator Script
-==========================================
-
-This script automatically generates the complete Android project structure 
-for the "GerFrota Fretes" application. It creates all necessary Kotlin, 
-XML, and Gradle files required to build the app locally or via CI/CD.
-
-Features of the generated app:
-- Local login system (email + password)
-- Dynamic license plate management (CRUD)
-- Local JSON backup and restore
-- PDF export and sharing (WhatsApp, Email, Drive)
-- Voice input for freight data
-- Freight tracking by license plate and carrier
-
-Usage:
-    python3 criar_gerfrota_fretes.py
-
-Requirements:
-    - Python 3.6+
-    - No external dependencies required (uses standard library)
-
-Generated Structure:
-    GerFrotaFretesApp/
-    ├── app/
-    │   ├── build.gradle.kts
-    │   └── src/main/
-    │       ├── AndroidManifest.xml
-    │       ├── java/com/gerfrota/fretes/
-    │       │   ├── MainActivity.kt
-    │       │   ├── data/ (Entities, DAOs, Repository, Backup)
-    │       │   ├── ui/ (Compose Screens)
-    │       │   └── drive/ (Backup Manager)
-    │       └── res/ (Resources, Drawables, Values)
-    ├── build.gradle.kts
-    ├── settings.gradle.kts
-    └── gradle.properties
-
-Author: GerFrota Development Team
-Version: 1.0.0
+=============================================================
+  GERADOR DO PROJETO GerFrota Fretes
+=============================================================
+  App Android para gestão de fretes e transportes
+  
+  FUNCIONALIDADES:
+  • Cadastro de fretes com 5 placas pré-configuradas:
+    - MLH 6C45
+    - QEW 8G04
+    - IWU 3D11
+    - ITL 4F00
+    - IXL 6H19
+  • Controle de valores, adiantamentos e saldos
+  • 10 formas de pagamento
+  • Backup local em JSON
+  • Exportação para PDF
+  • Compartilhamento via WhatsApp/E-mail
+  • Entrada por voz
+  • Cadastro dinâmico de placas
+  • Visualização por transportadora
+  
+  COLUNAS DA PLANILHA:
+  • DATA
+  • VALOR DO FRETE
+  • ADIANTAMENTO
+  • FORMA PGTO ADIANT.
+  • SALDO DO FRETE
+  • FORMA PGTO SALDO
+  • RECEBIDO N/S
+  • TRANSPORTADORA
+  • ORIGEM
+  • DESTINO
+  
+  USO: python3 criar_gerfrota_fretes.py
+  
+  REQUISITOS:
+  • Python 3.6+
+  • Android Studio (para compilação)
+  • JDK 17
+  
+  AUTOR: GerFrota Development Team
+  VERSÃO: 1.0.0
+=============================================================
 """
 
 import os
@@ -873,7 +876,7 @@ fun HomeScreen(
                     Column(Modifier.padding(12.dp)) {
                         Text("💰 SALDO", fontSize = 11.sp, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
-                        Text(nf.format(saldoTotal ?: 0.0), fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                        Text(nf.format(saldoTotal ?: 0.0).toString(), fontSize = 16.sp, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer)
                         Text("Por transportadora →", fontSize = 10.sp,
                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f))
