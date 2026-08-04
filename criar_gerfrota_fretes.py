@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-=============================================================
-  GERADOR DO PROJETO GerFrota Fretes - VERSÃO COMPLETA
-  Com cadastro dinâmico de placas
-=============================================================
+GERADOR DO PROJETO GerFrota Fretes - VERSÃO FINAL
+Sem dependências problemáticas do Google Drive API
 """
 
 import os
@@ -54,7 +52,7 @@ android.nonTransitiveRClass=true
 '''
 
 # ============================================================
-# 4. app/build.gradle.kts
+# 4. app/build.gradle.kts - SEM DEPENDÊNCIAS PROBLEMÁTICAS
 # ============================================================
 ARQUIVOS["app/build.gradle.kts"] = r'''plugins {
     id("com.android.application")
@@ -107,18 +105,6 @@ dependencies {
     // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
-    
-    // Google API - VERSÕES QUE FUNCIONAM
-    implementation("com.google.api-client:google-api-client:2.2.0")
-    implementation("com.google.oauth-client:google-oauth-client:1.34.1")
-    implementation("com.google.http-client:google-http-client:1.43.3")
-    implementation("com.google.http-client:google-http-client-gson:1.43.3")
-    implementation("com.google.apis:google-api-services-drive:v3-rev136-1.25.0")
-    implementation("com.google.auth:google-auth-library-oauth2-http:1.19.0")
-    implementation("com.google.code.gson:gson:2.10.1")
-    
-    // Google Play Services
-    implementation("com.google.android.gms:play-services-auth:21.0.0")
 }
 '''
 
@@ -129,7 +115,6 @@ ARQUIVOS["app/src/main/AndroidManifest.xml"] = r'''<?xml version="1.0" encoding=
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-    <uses-permission android:name="android.permission.GET_ACCOUNTS" android:maxSdkVersion="22"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28"/>
     <application
         android:allowBackup="true"
@@ -329,7 +314,6 @@ abstract class AppDatabase : RoomDatabase() {
                     )
                 """.trimIndent())
                 
-                // Inserir placas padrão
                 PlacasPadrao.lista.forEach { placa ->
                     db.execSQL("INSERT OR IGNORE INTO `placas` (placa, ativa, dataCadastro) VALUES ('$placa', 1, ${System.currentTimeMillis()})")
                 }
@@ -366,7 +350,6 @@ class Repository(private val dao: FreteDao, private val placaDao: PlacaDao) {
     val placasLista: Flow<List<String>> = placaDao.getAllPlacasAtivas()
     val todasPlacas: Flow<List<PlacaEntity>> = placaDao.getAll()
 
-    // Fretes
     suspend fun insert(f: FreteEntity) = dao.insert(f)
     suspend fun insertAll(fretes: List<FreteEntity>) = dao.insertAll(fretes)
     suspend fun update(f: FreteEntity) = dao.update(f)
@@ -376,7 +359,6 @@ class Repository(private val dao: FreteDao, private val placaDao: PlacaDao) {
     suspend fun getById(id: Long): FreteEntity? = dao.getById(id)
     fun fretesPorPlaca(placa: String): Flow<List<FreteEntity>> = dao.getFretesPorPlaca(placa)
 
-    // Placas
     suspend fun insertPlaca(placa: PlacaEntity) = placaDao.insert(placa)
     suspend fun insertPlacas(placas: List<PlacaEntity>) = placaDao.insertAll(placas)
     suspend fun updatePlaca(placa: PlacaEntity) = placaDao.update(placa)
@@ -434,7 +416,7 @@ enum class LoginResult { SUCCESS, WRONG_EMAIL, WRONG_PASSWORD, NOT_REGISTERED }
 '''
 
 # ============================================================
-# 13. data/LocalBackupManager.kt
+# 13. data/LocalBackupManager.kt - BACKUP LOCAL COMPLETO
 # ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/data/LocalBackupManager.kt"] = r'''package com.gerfrota.fretes.data
 
@@ -600,108 +582,7 @@ object PdfExporter {
 '''
 
 # ============================================================
-# 15. drive/DriveBackupManager.kt
-# ============================================================
-ARQUIVOS["app/src/main/java/com/gerfrota/fretes/drive/DriveBackupManager.kt"] = r'''package com.gerfrota.fretes.drive
-
-import android.accounts.AccountManager
-import android.content.Context
-import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
-import com.google.api.client.http.ByteArrayContent
-import com.google.api.client.http.javanet.NetHttpTransport
-import com.google.api.client.json.gson.GsonFactory
-import com.google.api.services.drive.Drive
-import com.google.api.services.drive.DriveScopes
-import com.google.api.services.drive.model.File
-import com.gerfrota.fretes.data.FreteEntity
-import com.gerfrota.fretes.data.LocalBackupManager
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.FileInputStream
-
-class DriveBackupManager(private val context: Context) {
-    private fun getGoogleAccount(): String? {
-        val am = AccountManager.get(context)
-        return am.getAccountsByType("com.google").firstOrNull()?.name
-    }
-    private fun buildDrive(accountEmail: String): Drive {
-        val credential = GoogleAccountCredential.usingOAuth2(context, listOf(DriveScopes.DRIVE_FILE))
-            .apply { selectedAccountName = accountEmail }
-        return Drive.Builder(NetHttpTransport(), GsonFactory.getDefaultInstance(), credential)
-            .setApplicationName("GerFrotaFretes").build()
-    }
-    
-    suspend fun backupCompleto(fretes: List<FreteEntity>): BackupCompletoResult = withContext(Dispatchers.IO) {
-        val (sucessoLocal, caminhoArquivo) = LocalBackupManager.criarBackupLocal(context, fretes)
-        if (!sucessoLocal) return@withContext BackupCompletoResult.Error("Falha ao criar backup local: $caminhoArquivo")
-        uploadParaDrive(caminhoArquivo)
-    }
-
-    private suspend fun uploadParaDrive(filePath: String): BackupCompletoResult = withContext(Dispatchers.IO) {
-        runCatching {
-            val accountEmail = getGoogleAccount() ?: return@withContext BackupCompletoResult.Error("Nenhuma conta Google no dispositivo.")
-            val drive = buildDrive(accountEmail)
-            val file = java.io.File(filePath)
-            val fileContent = FileInputStream(file).readBytes()
-            val content = ByteArrayContent.fromString("application/json", fileContent)
-            val metadata = File().apply {
-                name = "gerfrota_backup_${System.currentTimeMillis()}.json"
-                mimeType = "application/json"
-                description = "Backup automático GerFrota Fretes"
-            }
-            val query = "name contains 'gerfrota_backup' and mimeType='application/json' and trashed=false"
-            val existing = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").execute()
-            if (existing.files.isNullOrEmpty()) drive.files().create(metadata, content).setFields("id").execute()
-            else drive.files().update(existing.files[0].id, metadata, content).execute()
-            BackupCompletoResult.Sucesso(caminhoArquivo = filePath, driveAccount = accountEmail, message = "Backup criado localmente e enviado para Drive ($accountEmail)")
-        }.getOrElse { BackupCompletoResult.Error("Erro no upload para Drive: ${it.message}") }
-    }
-
-    suspend fun restaurarDoDrive(): RestoreResult = withContext(Dispatchers.IO) {
-        runCatching {
-            val accountEmail = getGoogleAccount() ?: return@withContext RestoreResult.Error("Nenhuma conta Google no dispositivo.")
-            val drive = buildDrive(accountEmail)
-            val query = "name contains 'gerfrota_backup' and mimeType='application/json' and trashed=false"
-            val files = drive.files().list().setQ(query).setSpaces("drive").setFields("files(id, name)").execute()
-            if (files.files.isNullOrEmpty()) return@withContext RestoreResult.Error("Nenhum backup encontrado no Drive.")
-            val fileId = files.files[0].id
-            val inputStream = drive.files().get(fileId).executeAsInputStream()
-            val jsonStr = inputStream.bufferedReader().use { it.readText() }
-            val org.json.JSONArray(jsonStr).let { jsonArray ->
-                val fretes = mutableListOf<FreteEntity>()
-                for (i in 0 until jsonArray.length()) {
-                    val obj = jsonArray.getJSONObject(i)
-                    fretes.add(FreteEntity(
-                        id = obj.optLong("id", 0), data = obj.optString("data", ""),
-                        placa = obj.optString("placa", ""), valorFrete = obj.optDouble("valorFrete", 0.0),
-                        adiantamento = obj.optDouble("adiantamento", 0.0), formaPgtoAdiant = obj.optString("formaPgtoAdiant", ""),
-                        saldoFrete = obj.optDouble("saldoFrete", 0.0), formaPgtoSaldo = obj.optString("formaPgtoSaldo", ""),
-                        recebido = obj.optBoolean("recebido", false), transportadora = obj.optString("transportadora", ""),
-                        origem = obj.optString("origem", ""), destino = obj.optString("destino", ""),
-                        syncStatus = obj.optInt("syncStatus", 0)
-                    ))
-                }
-                RestoreResult.Success(fretes, accountEmail)
-            }
-        }.getOrElse { RestoreResult.Error("Erro ao restaurar: ${it.message}") }
-    }
-
-    fun getDriveAccountEmail(): String? = getGoogleAccount()
-}
-
-sealed class BackupCompletoResult {
-    data class Sucesso(val localPath: String, val driveAccount: String, val message: String) : BackupCompletoResult()
-    data class Error(val message: String) : BackupCompletoResult()
-}
-
-sealed class RestoreResult {
-    data class Success(val fretes: List<FreteEntity>, val account: String) : RestoreResult()
-    data class Error(val message: String) : RestoreResult()
-}
-'''
-
-# ============================================================
-# 16. ui/LoginScreen.kt
+# 15. ui/LoginScreen.kt
 # ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/LoginScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
@@ -729,23 +610,15 @@ import com.gerfrota.fretes.R
 import com.gerfrota.fretes.data.AuthManager
 import com.gerfrota.fretes.data.LoginResult
 import com.gerfrota.fretes.data.Repository
-import com.gerfrota.fretes.drive.DriveBackupManager
-import com.gerfrota.fretes.drive.RestoreResult
-import kotlinx.coroutines.launch
 
 @Composable
 fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val backupManager = remember { DriveBackupManager(context) }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var isRegisterMode by remember { mutableStateOf(!AuthManager.isRegistered(context)) }
     var loading by remember { mutableStateOf(false) }
-    var restoring by remember { mutableStateOf(false) }
-    var showRestoreDialog by remember { mutableStateOf(false) }
-    var fretesRestaurados by remember { mutableStateOf<List<com.gerfrota.fretes.data.FreteEntity>?>(null) }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.primary) {
         Column(modifier = Modifier.fillMaxSize().padding(32.dp),
@@ -817,82 +690,19 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
                             Text(if (isRegisterMode) "Já tenho conta — Entrar" else "Não tenho conta — Criar agora", fontSize = 13.sp)
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    HorizontalDivider(color = Color.Gray.copy(alpha = 0.3f))
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedButton(onClick = {
-                        if (restoring) return@OutlinedButton
-                        restoring = true
-                        scope.launch {
-                            when (val result = backupManager.restaurarDoDrive()) {
-                                is RestoreResult.Success -> {
-                                    restoring = false
-                                    if (result.fretes.isEmpty()) Toast.makeText(context, "Backup vazio", Toast.LENGTH_SHORT).show()
-                                    else { fretesRestaurados = result.fretes; showRestoreDialog = true }
-                                }
-                                is RestoreResult.Error -> {
-                                    restoring = false
-                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        }
-                    }, modifier = Modifier.fillMaxWidth(), enabled = !restoring) {
-                        if (restoring) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                            Spacer(Modifier.width(8.dp)); Text("Buscando backup...")
-                        } else {
-                            Icon(Icons.Default.CloudDownload, null, tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.width(8.dp)); Text("Restaurar backup do Drive", fontSize = 13.sp)
-                        }
-                    }
                 }
             }
             Spacer(Modifier.height(16.dp))
-            Text("Seus dados ficam salvos no dispositivo\ne com backup no Google Drive",
+            Text("Seus dados ficam salvos no dispositivo",
                 fontSize = 12.sp, color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center)
         }
-    }
-    if (showRestoreDialog && fretesRestaurados != null) {
-        val fretes = fretesRestaurados!!
-        AlertDialog(onDismissRequest = { showRestoreDialog = false; fretesRestaurados = null },
-            icon = { Icon(Icons.Default.CloudDownload, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp)) },
-            title = { Text("Backup encontrado!") },
-            text = {
-                Column {
-                    Text("${fretes.size} fretes encontrados no backup.")
-                    Spacer(Modifier.height(8.dp))
-                    Text("• Substituir: apaga fretes atuais e importa backup", fontSize = 12.sp)
-                    Text("• Mesclar: mantém atuais e adiciona do backup", fontSize = 12.sp)
-                }
-            },
-            confirmButton = {
-                Column {
-                    TextButton(onClick = {
-                        scope.launch {
-                            repo.deleteAll(); repo.insertAll(fretes)
-                            showRestoreDialog = false; fretesRestaurados = null
-                            Toast.makeText(context, "✅ ${fretes.size} fretes restaurados!", Toast.LENGTH_LONG).show()
-                            onLoginSuccess()
-                        }
-                    }) { Text("🔄 SUBSTITUIR TUDO", color = Color.Red, fontWeight = FontWeight.Bold) }
-                    TextButton(onClick = {
-                        scope.launch {
-                            repo.insertAll(fretes)
-                            showRestoreDialog = false; fretesRestaurados = null
-                            Toast.makeText(context, "✅ ${fretes.size} fretes adicionados!", Toast.LENGTH_LONG).show()
-                            onLoginSuccess()
-                        }
-                    }) { Text("➕ MESCLAR COM ATUAIS", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
-                }
-            },
-            dismissButton = { TextButton(onClick = { showRestoreDialog = false; fretesRestaurados = null }) { Text("Cancelar") } })
     }
 }
 '''
 
 # ============================================================
-# 17. ui/HomeScreen.kt
+# 16. ui/HomeScreen.kt
 # ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/HomeScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
@@ -914,10 +724,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gerfrota.fretes.data.FreteEntity
+import com.gerfrota.fretes.data.LocalBackupManager
 import com.gerfrota.fretes.data.PdfExporter
 import com.gerfrota.fretes.data.Repository
-import com.gerfrota.fretes.drive.DriveBackupManager
-import com.gerfrota.fretes.drive.RestoreResult
 import kotlinx.coroutines.launch
 import java.text.NumberFormat
 import java.util.Locale
@@ -925,7 +734,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    repo: Repository, userEmail: String, driveAccountEmail: String?,
+    repo: Repository, userEmail: String,
     onAddClick: () -> Unit, onEditClick: (FreteEntity) -> Unit,
     onSaldoClick: () -> Unit, onPlacasClick: () -> Unit,
     onGerenciarPlacasClick: () -> Unit, onLogout: () -> Unit
@@ -939,9 +748,7 @@ fun HomeScreen(
     var pdfUri by remember { mutableStateOf<android.net.Uri?>(null) }
     var showShareDialog by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
-    var showRestoreDialog by remember { mutableStateOf(false) }
-    var fretesRestaurados by remember { mutableStateOf<List<FreteEntity>?>(null) }
-    val backupManager = remember { DriveBackupManager(context) }
+    var backupando by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -949,11 +756,7 @@ fun HomeScreen(
                 title = {
                     Column {
                         Text("GerFrota Fretes", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        if (driveAccountEmail != null) {
-                            Text("🔄 Drive: $driveAccountEmail", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
-                        } else {
-                            Text("⚠️ Sem conta Google no dispositivo", fontSize = 10.sp, color = Color.Yellow)
-                        }
+                        Text("💾 Backup local ativo", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
                     }
                 },
                 actions = {
@@ -962,28 +765,29 @@ fun HomeScreen(
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                         DropdownMenuItem(
+                            text = { Text("💾 Criar backup local") },
+                            onClick = {
+                                menuOpen = false
+                                if (fretes.isEmpty()) {
+                                    Toast.makeText(context, "Nenhum frete para backup", Toast.LENGTH_SHORT).show()
+                                    return@DropdownMenuItem
+                                }
+                                backupando = true
+                                scope.launch {
+                                    val (sucesso, msg) = LocalBackupManager.criarBackupLocal(context, fretes)
+                                    backupando = false
+                                    Toast.makeText(context, if (sucesso) "✅ Backup criado!" else "❌ $msg", Toast.LENGTH_LONG).show()
+                                }
+                            },
+                            leadingIcon = { Icon(Icons.Default.Save, null) }
+                        )
+                        DropdownMenuItem(
                             text = { Text("🚛 Gerenciar Placas") },
                             onClick = {
                                 menuOpen = false
                                 onGerenciarPlacasClick()
                             },
                             leadingIcon = { Icon(Icons.Default.LocalShipping, null) }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("🔄 Restaurar backup do Drive") },
-                            onClick = {
-                                menuOpen = false
-                                scope.launch {
-                                    when (val r = backupManager.restaurarDoDrive()) {
-                                        is RestoreResult.Success -> {
-                                            if (r.fretes.isEmpty()) Toast.makeText(context, "Backup vazio", Toast.LENGTH_SHORT).show()
-                                            else { fretesRestaurados = r.fretes; showRestoreDialog = true }
-                                        }
-                                        is RestoreResult.Error -> Toast.makeText(context, r.message, Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            },
-                            leadingIcon = { Icon(Icons.Default.CloudDownload, null) }
                         )
                     }
                     IconButton(onClick = {
@@ -1072,51 +876,12 @@ fun HomeScreen(
                         Icon(Icons.Default.Chat, null, tint = Color(0xFF25D366))
                         Spacer(Modifier.width(8.dp)); Text("Enviar por WhatsApp")
                     }
-                    OutlinedButton(onClick = { compartilharEmail(context, pdfUri!!); showShareDialog = false }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Email, null, tint = Color(0xFFD93025))
-                        Spacer(Modifier.width(8.dp)); Text("Enviar por E-mail")
-                    }
-                    Button(onClick = { compartilharGenerico(context, pdfUri!!); showShareDialog = false },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                        Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Compartilhar (outros apps)")
+                    OutlinedButton(onClick = { compartilharGenerico(context, pdfUri!!); showShareDialog = false }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Compartilhar (Drive, E-mail, etc)")
                     }
                 }
             },
             confirmButton = { TextButton(onClick = { showShareDialog = false }) { Text("Fechar") } })
-    }
-    if (showRestoreDialog && fretesRestaurados != null) {
-        val fretes = fretesRestaurados!!
-        AlertDialog(onDismissRequest = { showRestoreDialog = false; fretesRestaurados = null },
-            icon = { Icon(Icons.Default.CloudDownload, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(40.dp)) },
-            title = { Text("Backup encontrado!") },
-            text = {
-                Column {
-                    Text("${fretes.size} fretes encontrados no backup.")
-                    Spacer(Modifier.height(8.dp))
-                    Text("• Substituir: apaga fretes atuais e importa backup", fontSize = 12.sp)
-                    Text("• Mesclar: mantém atuais e adiciona do backup", fontSize = 12.sp)
-                }
-            },
-            confirmButton = {
-                Column {
-                    TextButton(onClick = {
-                        scope.launch {
-                            repo.deleteAll(); repo.insertAll(fretes)
-                            showRestoreDialog = false; fretesRestaurados = null
-                            Toast.makeText(context, "✅ ${fretes.size} fretes restaurados!", Toast.LENGTH_LONG).show()
-                        }
-                    }) { Text("🔄 SUBSTITUIR TUDO", color = Color.Red, fontWeight = FontWeight.Bold) }
-                    TextButton(onClick = {
-                        scope.launch {
-                            repo.insertAll(fretes)
-                            showRestoreDialog = false; fretesRestaurados = null
-                            Toast.makeText(context, "✅ ${fretes.size} fretes mesclados!", Toast.LENGTH_LONG).show()
-                        }
-                    }) { Text("➕ MESCLAR", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold) }
-                }
-            },
-            dismissButton = { TextButton(onClick = { showRestoreDialog = false; fretesRestaurados = null }) { Text("Cancelar") } })
     }
 }
 
@@ -1133,23 +898,13 @@ private fun compartilharWhatsApp(ctx: android.content.Context, uri: android.net.
     }
 }
 
-private fun compartilharEmail(ctx: android.content.Context, uri: android.net.Uri) {
-    val intent = Intent(Intent.ACTION_SEND).apply {
-        type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri)
-        putExtra(Intent.EXTRA_SUBJECT, "Relatório de Fretes")
-        putExtra(Intent.EXTRA_TEXT, "Segue relatório gerado pelo app GerFrota Fretes.")
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-    ctx.startActivity(Intent.createChooser(intent, "Enviar por e-mail"))
-}
-
 private fun compartilharGenerico(ctx: android.content.Context, uri: android.net.Uri) {
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri)
         putExtra(Intent.EXTRA_SUBJECT, "Relatório de Fretes")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
-    ctx.startActivity(Intent.createChooser(intent, "Compartilhar PDF via..."))
+    ctx.startActivity(Intent.createChooser(intent, "Compartilhar via..."))
 }
 
 @Composable
@@ -1192,7 +947,7 @@ fun FreteItem(f: FreteEntity, nf: NumberFormat, onEdit: () -> Unit, onDelete: ()
 '''
 
 # ============================================================
-# 18. ui/PlacasScreen.kt
+# 17. ui/PlacasScreen.kt
 # ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/PlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
@@ -1336,7 +1091,7 @@ fun FreteItemPlaca(f: FreteEntity, nf: NumberFormat) {
 '''
 
 # ============================================================
-# 19. ui/GerenciarPlacasScreen.kt
+# 18. ui/GerenciarPlacasScreen.kt
 # ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/GerenciarPlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
@@ -1422,7 +1177,6 @@ fun GerenciarPlacasScreen(repo: Repository, onBack: () -> Unit) {
         }
     }
 
-    // Diálogo de adicionar/editar
     if (showAddDialog || placaEditando != null) {
         DialogPlacaForm(
             placaExistente = placaEditando,
@@ -1439,7 +1193,6 @@ fun GerenciarPlacasScreen(repo: Repository, onBack: () -> Unit) {
         )
     }
 
-    // Confirmação de exclusão
     if (showDeleteConfirm != null) {
         val placa = showDeleteConfirm!!
         AlertDialog(
@@ -1576,7 +1329,7 @@ fun DialogPlacaForm(
 '''
 
 # ============================================================
-# 20. ui/FreteFormScreen.kt
+# 19. ui/FreteFormScreen.kt
 # ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/FreteFormScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
@@ -1728,7 +1481,7 @@ fun FreteFormScreen(repo: Repository, freteParaEditar: FreteEntity? = null, onBa
                     onBack()
                 }
             }, modifier = Modifier.fillMaxWidth().height(56.dp), enabled = !salvando) {
-                Text(if (isEdit) "💾 ATUALIZAR FRETE" else " SALVAR FRETE", fontSize = 16.sp)
+                Text(if (isEdit) "💾 ATUALIZAR FRETE" else "💾 SALVAR FRETE", fontSize = 16.sp)
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -1751,7 +1504,7 @@ fun VoiceField(label: String, value: String, onChange: (String) -> Unit,
 '''
 
 # ============================================================
-# 21. ui/SaldoReceberScreen.kt
+# 20. ui/SaldoReceberScreen.kt
 # ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/SaldoReceberScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
@@ -1817,7 +1570,7 @@ fun SaldoReceberScreen(repo: Repository, onBack: () -> Unit) {
 '''
 
 # ============================================================
-# 22. ui/VoiceInputHelper.kt
+# 21. ui/VoiceInputHelper.kt
 # ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/ui/VoiceInputHelper.kt"] = r'''package com.gerfrota.fretes.ui
 
@@ -1844,7 +1597,7 @@ object VoiceInputHelper {
 '''
 
 # ============================================================
-# 23. MainActivity.kt
+# 22. MainActivity.kt
 # ============================================================
 ARQUIVOS["app/src/main/java/com/gerfrota/fretes/MainActivity.kt"] = r'''package com.gerfrota.fretes
 
@@ -1861,16 +1614,13 @@ import androidx.navigation.navArgument
 import com.gerfrota.fretes.data.AppDatabase
 import com.gerfrota.fretes.data.AuthManager
 import com.gerfrota.fretes.data.Repository
-import com.gerfrota.fretes.drive.DriveBackupManager
 import com.gerfrota.fretes.ui.*
-import kotlinx.coroutines.flow.firstOrNull
 
 class MainActivity : ComponentActivity() {
     private val repo by lazy { 
         val db = AppDatabase.get(this)
         Repository(db.freteDao(), db.placaDao())
     }
-    private val backup by lazy { DriveBackupManager(this) }
     private val freteEditTarget = mutableStateOf<Long?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1895,7 +1645,6 @@ class MainActivity : ComponentActivity() {
                     composable("home") {
                         HomeScreen(
                             repo = repo, userEmail = loggedEmail ?: "",
-                            driveAccountEmail = backup.getDriveAccountEmail(),
                             onAddClick = { nav.navigate("form") },
                             onEditClick = { f -> freteEditTarget.value = f.id; nav.navigate("form?edit=1") },
                             onSaldoClick = { nav.navigate("saldo") },
@@ -1907,20 +1656,6 @@ class MainActivity : ComponentActivity() {
                                 nav.navigate("login") { popUpTo(0) { inclusive = true } }
                             }
                         )
-                        LaunchedEffect(loggedEmail) {
-                            if (loggedEmail != null) {
-                                val fretes = repo.fretes.firstOrNull() ?: emptyList()
-                                val result = backup.backupCompleto(fretes)
-                                when (result) {
-                                    is com.gerfrota.fretes.drive.BackupCompletoResult.Sucesso -> {
-                                        android.util.Log.i("Backup", result.message)
-                                    }
-                                    is com.gerfrota.fretes.drive.BackupCompletoResult.Error -> {
-                                        android.util.Log.e("Backup", result.message)
-                                    }
-                                }
-                            }
-                        }
                     }
                     composable("placas") { PlacasScreen(repo) { nav.popBackStack() } }
                     composable("gerenciar_placas") { GerenciarPlacasScreen(repo) { nav.popBackStack() } }
@@ -1934,7 +1669,7 @@ class MainActivity : ComponentActivity() {
                         var loaded by remember { mutableStateOf(!isEdit) }
                         LaunchedEffect(targetId, isEdit) {
                             if (isEdit && targetId != null) {
-                                frete = repo.fretes.firstOrNull()?.find { it.id == targetId }
+                                frete = repo.fretes.value.firstOrNull { it.id == targetId }
                                 loaded = true
                             }
                         }
@@ -1956,7 +1691,7 @@ class MainActivity : ComponentActivity() {
 '''
 
 # ============================================================
-# 24. RECURSOS
+# 23. RECURSOS
 # ============================================================
 ARQUIVOS["app/src/main/res/drawable/ic_truck_logo.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
@@ -2023,7 +1758,7 @@ ARQUIVOS["app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml"] = r'''<?xml
 def criar_projeto():
     print("=" * 60)
     print("  GERADOR DO PROJETO GerFrota Fretes")
-    print("  Versão Completa com Cadastro Dinâmico de Placas")
+    print("  Versão Final - Sem dependências problemáticas")
     print("=" * 60)
     print()
     if os.path.exists(PROJETO):
