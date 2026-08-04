@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-GERADOR DO PROJETO GerFrota Fretes - VERSÃO FINAL
-Sem dependências problemáticas do Google Drive API
+=============================================================
+  GERADOR DO PROJETO GerFrota Fretes - VERSÃO FINAL
+=============================================================
+  App Android para controle de fretes com:
+  • Backup local automático (JSON)
+  • Compartilhamento via apps (WhatsApp, Drive, E-mail)
+  • Cadastro dinâmico de placas
+  • Entrada por voz
+  • Exportação PDF
+  • 5 placas pré-cadastradas
+  • 10 formas de pagamento
+  
+  USO:  python criar_gerfrota_fretes.py
+=============================================================
 """
 
 import os
