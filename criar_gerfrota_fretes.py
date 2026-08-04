@@ -966,6 +966,96 @@ fun HomeScreen(
 }
 '''
 
+# 18. PlacasScreen.kt
+A["app/src/main/java/com/gerfrota/fretes/ui/PlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.gerfrota.fretes.data.FreteEntity
+import com.gerfrota.fretes.data.PlacaResumo
+import com.gerfrota.fretes.data.Repository
+import java.text.NumberFormat
+import java.util.Locale
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PlacasScreen(repo: Repository, onBack: () -> Unit) {
+    val resumo by repo.resumoPorPlaca.collectAsState(initial = emptyList())
+    val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    var placaSelecionada by remember { mutableStateOf<String?>(null) }
+    
+    Scaffold(topBar = { 
+        TopAppBar(title = { Text(text = if (placaSelecionada == null) "Fretes por Placa" else placaSelecionada!!) },
+        navigationIcon = { IconButton(onClick = { if (placaSelecionada != null) placaSelecionada = null else onBack() }) { Icon(Icons.Default.ArrowBack, "Voltar") } } ) 
+    }) { padding ->
+        if (placaSelecionada == null) {
+            Column(Modifier.padding(padding).fillMaxSize()) {
+                val totalGeral = resumo.sumOf { it.totalSaldo }
+                val fretesTotal = resumo.sumOf { it.totalFretes }
+                Card(modifier = Modifier.fillMaxWidth().padding(16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
+                    Column(Modifier.padding(20.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(text = "TOTAL GERAL - TODAS AS PLACAS", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text(text = nf.format(totalGeral).toString(), color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                        Text(text = "$fretesTotal fretes cadastrados", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
+                    }
+                }
+                LazyColumn(Modifier.padding(horizontal = 16.dp)) { 
+                    items(resumo) { r -> CardPlaca(r, nf) { placaSelecionada = r.placa } } 
+                }
+            }
+        } else {
+            val fretes by repo.fretesPorPlaca(placaSelecionada!!).collectAsState(initial = emptyList())
+            LazyColumn(Modifier.padding(padding).padding(horizontal = 16.dp)) { 
+                items(fretes) { f -> FreteItemPlaca(f, nf) } 
+            }
+        }
+    }
+}
+
+@Composable
+fun CardPlaca(resumo: PlacaResumo, nf: NumberFormat, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp).clickable { onClick() }, elevation = CardDefaults.cardElevation(3.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.LocalShipping, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) { 
+                    Text(text = resumo.placa, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(text = "${resumo.totalFretes} fretes", fontSize = 12.sp, color = Color.Gray) 
+                }
+                Text(text = nf.format(resumo.totalSaldo).toString(), fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                    color = if (resumo.totalSaldo > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+@Composable
+fun FreteItemPlaca(f: FreteEntity, nf: NumberFormat) {
+    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        Column(Modifier.padding(12.dp)) {
+            Text(text = f.transportadora.ifBlank { "Sem transportadora" }, fontWeight = FontWeight.Bold)
+            Text(text = "${f.origem} -> ${f.destino}", fontSize = 12.sp, color = Color.Gray)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(text = "${f.data}", fontSize = 11.sp, color = Color.Gray)
+                Text(text = nf.format(f.saldoFrete).toString(), fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+'''
+
 # 18.5. GerenciarPlacasScreen.kt (NOVO)
 A["app/src/main/java/com/gerfrota/fretes/ui/GerenciarPlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import android.widget.Toast
