@@ -41,7 +41,6 @@ jobs:
         echo "Creating Gradle Wrapper..."
         mkdir -p gradle/wrapper
 
-        # Create gradle-wrapper.properties
         cat > gradle/wrapper/gradle-wrapper.properties << 'EOF'
         distributionBase=GRADLE_USER_HOME
         distributionPath=wrapper/dists
@@ -51,15 +50,12 @@ jobs:
         zipStorePath=wrapper/dists
         EOF
 
-        # Download gradle-wrapper.jar
-        echo "Downloading gradle-wrapper.jar..."
         curl -L -o gradle/wrapper/gradle-wrapper.jar \
           "https://github.com/gradle/gradle/raw/v8.4.0/gradle/wrapper/gradle-wrapper.jar" || {
             echo "Failed to download gradle-wrapper.jar"
             exit 1
           }
 
-        # Create gradlew script
         cat > gradlew << 'GRADLEW'
         #!/bin/sh
         APP_HOME="$(cd "$(dirname "$0")" && pwd)"
@@ -68,7 +64,6 @@ jobs:
         GRADLEW
         chmod +x gradlew
 
-        echo "Verifying files..."
         ls -la gradle/wrapper/
         ls -la gradlew
 
