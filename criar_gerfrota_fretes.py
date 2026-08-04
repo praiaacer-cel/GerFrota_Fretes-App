@@ -824,23 +824,27 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
 }
 '''
 
-# 17. HomeScreen.kt
+# 17. HomeScreen.kt - LAYOUT MODERNO
 A["app/src/main/java/com/gerfrota/fretes/ui/HomeScreen.kt"] = r'''package com.gerfrota.fretes.ui
-import android.content.Intent
-import android.widget.Toast
+
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gerfrota.fretes.data.FreteEntity
@@ -863,102 +867,459 @@ fun HomeScreen(
     val scope = rememberCoroutineScope()
     val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
     val context = LocalContext.current
-    var menuOpen by remember { mutableStateOf(false) }
     var filtroTransportadora by remember { mutableStateOf<String?>(null) }
     var filtroPlaca by remember { mutableStateOf<String?>(null) }
     val transportadoras by repo.transportadoras.collectAsState(initial = emptyList())
     val placas by repo.placasLista.collectAsState(initial = emptyList())
+    
     val fretesFiltrados = fretes.filter { f ->
-        (filtroTransportadora == null || f.transportadora == filtroTransportadora) && (filtroPlaca == null || f.placa == filtroPlaca)
+        (filtroTransportadora == null || f.transportadora == filtroTransportadora) && 
+        (filtroPlaca == null || f.placa == filtroPlaca)
     }
+
     Scaffold(
         topBar = {
-            TopAppBar(title = { Column {
-                Text(text = "GerFrota Fretes", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(text = "Sistema de Gestão de Fretes", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f))
-            } }, actions = {
-                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Default.MoreVert, "Menu", tint = Color.White) }
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(text = { Text(text = "📊 Relatórios") }, onClick = { menuOpen = false; onRelatoriosClick() }, leadingIcon = { Icon(Icons.Default.PictureAsPdf, null) })
-                    DropdownMenuItem(text = { Text(text = "💾 Backup") }, onClick = { menuOpen = false; onBackupClick() }, leadingIcon = { Icon(Icons.Default.CloudUpload, null) })
-                    DropdownMenuItem(text = { Text(text = "Sair") }, onClick = { menuOpen = false; onLogout() }, leadingIcon = { Icon(Icons.Default.Logout, null) })
-                }
-            })
+            TopAppBar(
+                title = { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.LocalShipping, 
+                            contentDescription = null,
+                            tint = Color(0xFF1976D2),
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "GerFrota Fretes", 
+                            fontWeight = FontWeight.Bold, 
+                            fontSize = 20.sp,
+                            color = Color(0xFF0D47A1)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.White
+                )
+            )
         },
-        floatingActionButton = { FloatingActionButton(onClick = onAddClick) { Icon(Icons.Default.Add, "Novo Frete") } }
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddClick,
+                containerColor = Color(0xFF1976D2),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Icon(Icons.Default.Add, "Novo Frete", tint = Color.White)
+            }
+        }
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            // CARDS PRINCIPAIS
-            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Card(modifier = Modifier.weight(1f).clickable { onRelatoriosClick() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)) {
-                    Column(Modifier.padding(16.dp)) { Text(text = "GerFrota Fretes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(text = "Gestão Completa", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f)) }
+        LazyColumn(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .background(Color(0xFFF5F7FA)),
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            // ✅ CARDS PRINCIPAIS - GRID 4 COLUNAS
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Card Frota
+                    ModernCard(
+                        title = "Frota",
+                        subtitle = "Gestão Completa",
+                        icon = Icons.Default.LocalShipping,
+                        color = Color(0xFF1976D2),
+                        onClick = onGerenciarPlacasClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // Card Fretes
+                    ModernCard(
+                        title = "Fretes",
+                        subtitle = "${fretes.size} ativos",
+                        icon = Icons.Default.LocationOn,
+                        color = Color(0xFF2196F3),
+                        onClick = onFretesClick,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-                Card(modifier = Modifier.weight(1f).clickable { onPlacasClick() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondary)) {
-                    Column(Modifier.padding(16.dp)) { Text(text = "Placas", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(text = "${placas.size} veículos", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f)) }
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Card Backup
+                    ModernCard(
+                        title = "Backup",
+                        subtitle = "Sincronizar Dados",
+                        icon = Icons.Default.CloudUpload,
+                        color = Color(0xFF42A5F5),
+                        onClick = onBackupClick,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // Card Relatórios
+                    ModernCard(
+                        title = "Relatórios",
+                        subtitle = "Análises e Indicadores",
+                        icon = Icons.Default.BarChart,
+                        color = Color(0xFF64B5F6),
+                        onClick = onRelatoriosClick,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable { onFretesClick() }, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiary)) {
-                Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column { Text(text = "Fretes", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(text = "${fretes.size} registros", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f)) }
-                    Icon(Icons.Default.LocalShipping, null, tint = Color.White)
-                }
-            }
-            // ✅ NOVO: Botão Cadastrar Veículo/Placa
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable { onGerenciarPlacasClick() },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.inversePrimary)) {
-                Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Column { Text(text = "Cadastrar Veículo/Placa", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(text = "Gerenciar frota de veículos", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f)) }
-                    Icon(Icons.Default.AddCircle, null, tint = Color.White)
-                }
-            }
-            // FILTROS
-            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                var showTranspFilter by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(filtroTransportadora != null, onExpandedChange = { showTranspFilter = it }) {
-                    OutlinedTextField(value = filtroTransportadora ?: "Todas Transportadoras", onValueChange = {}, modifier = Modifier.weight(1f).menuAnchor(), readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(showTranspFilter) })
-                    ExposedDropdownMenu(showTranspFilter, onDismissRequest = { showTranspFilter = false }) {
-                        DropdownMenuItem(text = { Text("Todas Transportadoras") }, onClick = { filtroTransportadora = null; showTranspFilter = false })
-                        transportadoras.forEach { transp -> DropdownMenuItem(text = { Text(transp) }, onClick = { filtroTransportadora = transp; showTranspFilter = false }) }
+
+            // ✅ CARD FRETES - REGISTROS
+            item {
+                Spacer(Modifier.height(20.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFE3F2FD)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Fretes",
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0D47A1)
+                            )
+                            Text(
+                                text = "${fretes.size} registros",
+                                fontSize = 14.sp,
+                                color = Color.Gray
+                            )
+                        }
+                        Icon(
+                            imageVector = Icons.Default.Assignment,
+                            contentDescription = null,
+                            tint = Color(0xFF1976D2),
+                            modifier = Modifier.size(40.dp)
+                        )
                     }
                 }
-                var showPlacaFilter by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(filtroPlaca != null, onExpandedChange = { showPlacaFilter = it }) {
-                    OutlinedTextField(value = filtroPlaca ?: "Todas Placas", onValueChange = {}, modifier = Modifier.weight(1f).menuAnchor(), readOnly = true, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(showPlacaFilter) })
-                    ExposedDropdownMenu(showPlacaFilter, onDismissRequest = { showPlacaFilter = false }) {
-                        DropdownMenuItem(text = { Text("Todas Placas") }, onClick = { filtroPlaca = null; showPlacaFilter = false })
-                        placas.forEach { placa -> DropdownMenuItem(text = { Text(placa) }, onClick = { filtroPlaca = placa; showPlacaFilter = false }) }
-                    }
-                }
             }
-            // SALDO A RECEBER
-            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(text = "SALDO A RECEBER", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                    Text(text = nf.format(saldoTotal ?: 0.0).toString(), fontSize = 28.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onErrorContainer)
-                    if (filtroTransportadora != null || filtroPlaca != null) Text(text = "Filtrado", fontSize = 11.sp, color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f))
-                }
-            }
-            Text(text = "  Fretes Recentes", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            LazyColumn(Modifier.padding(horizontal = 16.dp)) {
-                items(fretesFiltrados) { f ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                        Column(Modifier.padding(12.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(text = f.transportadora.ifBlank { "Sem transportadora" }, fontWeight = FontWeight.Bold, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                                Text(text = nf.format(f.saldoFrete).toString(), fontWeight = FontWeight.Bold, color = if (f.recebido) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+
+            // ✅ FILTROS - TRANSPORTADORAS E PLACAS
+            item {
+                Spacer(Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Filtro Transportadoras
+                    var showTranspFilter by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = showTranspFilter,
+                        onExpandedChange = { showTranspFilter = it },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        OutlinedTextField(
+                            value = filtroTransportadora ?: "Todas Transportadoras",
+                            onValueChange = {},
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            readOnly = true,
+                            shape = RoundedCornerShape(12.dp),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(showTranspFilter) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF1976D2),
+                                unfocusedBorderColor = Color(0xFF1976D2)
+                            )
+                        )
+                        ExposedDropdownMenu(
+                            expanded = showTranspFilter,
+                            onDismissRequest = { showTranspFilter = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Todas Transportadoras") },
+                                onClick = { filtroTransportadora = null; showTranspFilter = false }
+                            )
+                            transportadoras.forEach { transp ->
+                                DropdownMenuItem(
+                                    text = { Text(transp) },
+                                    onClick = { filtroTransportadora = transp; showTranspFilter = false }
+                                )
                             }
-                            Text(text = "${f.origem} -> ${f.destino}", fontSize = 12.sp, color = Color.Gray)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(text = "${f.data} - ${f.placa}", fontSize = 11.sp, color = Color.Gray)
-                                TextButton(onClick = { onEditClick(f) }) { Text(text = "Editar", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary) }
-                            }
-                            if (f.recebido) Text(text = "RECEBIDO", fontSize = 10.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         }
                     }
+
+                    // Filtro Placas
+                    var showPlacaFilter by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = showPlacaFilter,
+                        onExpandedChange = { showPlacaFilter = it },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        OutlinedTextField(
+                            value = filtroPlaca ?: "Todas Placas",
+                            onValueChange = {},
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            readOnly = true,
+                            shape = RoundedCornerShape(12.dp),
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(showPlacaFilter) },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF1976D2),
+                                unfocusedBorderColor = Color(0xFF1976D2)
+                            )
+                        )
+                        ExposedDropdownMenu(
+                            expanded = showPlacaFilter,
+                            onDismissRequest = { showPlacaFilter = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Todas Placas") },
+                                onClick = { filtroPlaca = null; showPlacaFilter = false }
+                            )
+                            placas.forEach { placa ->
+                                DropdownMenuItem(
+                                    text = { Text(placa) },
+                                    onClick = { filtroPlaca = placa; showPlacaFilter = false }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // ✅ CARD SALDO A RECEBER - COM GRADIENTE
+            item {
+                Spacer(Modifier.height(20.dp))
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color.Transparent
+                    )
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(
+                                        Color(0xFFE1F5FE),
+                                        Color(0xFFFFEBEE)
+                                    )
+                                )
+                            )
+                            .padding(20.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "SALDO A RECEBER",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF546E7A)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = nf.format(saldoTotal ?: 0.0).toString(),
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0D47A1)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // ✅ FRETES RECENTES
+            item {
+                Spacer(Modifier.height(24.dp))
+                Text(
+                    text = "Fretes Recentes",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0D47A1)
+                )
+            }
+
+            // ✅ LISTA DE FRETES
+            if (fretesFiltrados.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.Inbox,
+                                contentDescription = null,
+                                tint = Color.Gray,
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = "Nenhum frete cadastrado",
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "Toque no + para adicionar",
+                                color = Color.Gray,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(fretesFiltrados) { f ->
+                    FreteItemModern(f, nf, onEdit = { onEditClick(f) })
+                }
+            }
+
+            item {
+                Spacer(Modifier.height(80.dp))
+            }
+        }
+    }
+}
+
+//  COMPONENTE: Card Moderno
+@Composable
+fun ModernCard(
+    title: String,
+    subtitle: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .height(120.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(containerColor = color)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(40.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = title,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = subtitle,
+                fontSize = 11.sp,
+                color = Color.White.copy(alpha = 0.85f),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+//  COMPONENTE: Item de Frete Moderno
+@Composable
+fun FreteItemModern(
+    f: FreteEntity,
+    nf: NumberFormat,
+    onEdit: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .clip(RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = f.transportadora.ifBlank { "Sem transportadora" },
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        color = Color(0xFF0D47A1)
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "${f.origem} → ${f.destino}",
+                        fontSize = 13.sp,
+                        color = Color.Gray
+                    )
+                }
+                Text(
+                    text = nf.format(f.saldoFrete).toString(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = if (f.recebido) Color(0xFF4CAF50) else Color(0xFFE53935)
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${f.data} • ${f.placa}",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+                TextButton(onClick = onEdit) {
+                    Text(
+                        text = "Editar",
+                        color = Color(0xFF1976D2),
+                        fontSize = 13.sp
+                    )
+                }
+            }
+            if (f.recebido) {
+                Spacer(Modifier.height(8.dp))
+                Row {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = Color(0xFF4CAF50),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "RECEBIDO",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF4CAF50)
+                    )
                 }
             }
         }
