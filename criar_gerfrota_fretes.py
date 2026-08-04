@@ -56,7 +56,7 @@ kotlin.code.style=official
 android.nonTransitiveRClass=true
 '''
 
-# 4. app/build.gradle.kts (COM VERSÃO ESTÁVEL DA API DO DRIVE)
+# 4. app/build.gradle.kts
 A["app/build.gradle.kts"] = r'''plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -80,6 +80,19 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildTypes { release { isMinifyEnabled = false } }
+    
+    // ✅ CORREÇÃO: Resolver conflito de arquivos META-INF das bibliotecas do Google
+    packagingOptions {
+        resources {
+            pickFirsts += listOf(
+                "META-INF/DEPENDENCIES",
+                "META-INF/LICENSE",
+                "META-INF/LICENSE.txt",
+                "META-INF/NOTICE",
+                "META-INF/NOTICE.txt"
+            )
+        }
+    }
 }
 dependencies {
     implementation("androidx.core:core-ktx:1.12.0")
