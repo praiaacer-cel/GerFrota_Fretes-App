@@ -824,7 +824,7 @@ fun LoginScreen(repo: Repository, onLoginSuccess: () -> Unit) {
 }
 '''
 
-# 17. HomeScreen.kt - LAYOUT MODERNO
+# 17. HomeScreen.kt - LAYOUT MODERNO ATUALIZADO
 A["app/src/main/java/com/gerfrota/fretes/ui/HomeScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
 import androidx.compose.foundation.background
@@ -881,12 +881,17 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = { 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // ✅ ÍCONE DO TÍTULO - Original
                         Icon(
                             imageVector = Icons.Default.LocalShipping, 
                             contentDescription = null,
                             tint = Color(0xFF1976D2),
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(36.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
@@ -925,8 +930,8 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Card Frota
-                    ModernCard(
+                    // Card Frota - Ícone Original
+                    ModernCardCompact(
                         title = "Frota",
                         subtitle = "Gestão Completa",
                         icon = Icons.Default.LocalShipping,
@@ -934,8 +939,8 @@ fun HomeScreen(
                         onClick = onGerenciarPlacasClick,
                         modifier = Modifier.weight(1f)
                     )
-                    // Card Fretes
-                    ModernCard(
+                    // Card Fretes - Ícone Original
+                    ModernCardCompact(
                         title = "Fretes",
                         subtitle = "${fretes.size} ativos",
                         icon = Icons.Default.LocationOn,
@@ -949,8 +954,8 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Card Backup
-                    ModernCard(
+                    // Card Backup - Ícone Original
+                    ModernCardCompact(
                         title = "Backup",
                         subtitle = "Sincronizar Dados",
                         icon = Icons.Default.CloudUpload,
@@ -958,8 +963,8 @@ fun HomeScreen(
                         onClick = onBackupClick,
                         modifier = Modifier.weight(1f)
                     )
-                    // Card Relatórios
-                    ModernCard(
+                    // Card Relatórios - Ícone Original
+                    ModernCardCompact(
                         title = "Relatórios",
                         subtitle = "Análises e Indicadores",
                         icon = Icons.Default.BarChart,
@@ -1018,7 +1023,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Filtro Transportadoras
+                    // Filtro Transportadoras - TEXTO CENTRALIZADO
                     var showTranspFilter by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = showTranspFilter,
@@ -1033,10 +1038,15 @@ fun HomeScreen(
                                 .menuAnchor(),
                             readOnly = true,
                             shape = RoundedCornerShape(12.dp),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(showTranspFilter) },
+                            trailingIcon = { 
+                                ExposedDropdownMenuDefaults.TrailingIcon(showTranspFilter)
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF1976D2),
                                 unfocusedBorderColor = Color(0xFF1976D2)
+                            ),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                textAlign = TextAlign.Center
                             )
                         )
                         ExposedDropdownMenu(
@@ -1044,19 +1054,19 @@ fun HomeScreen(
                             onDismissRequest = { showTranspFilter = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Todas Transportadoras") },
+                                text = { Text("Todas Transportadoras", textAlign = TextAlign.Center) },
                                 onClick = { filtroTransportadora = null; showTranspFilter = false }
                             )
                             transportadoras.forEach { transp ->
                                 DropdownMenuItem(
-                                    text = { Text(transp) },
+                                    text = { Text(transp, textAlign = TextAlign.Center) },
                                     onClick = { filtroTransportadora = transp; showTranspFilter = false }
                                 )
                             }
                         }
                     }
 
-                    // Filtro Placas
+                    // Filtro Placas - TEXTO CENTRALIZADO
                     var showPlacaFilter by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(
                         expanded = showPlacaFilter,
@@ -1071,10 +1081,15 @@ fun HomeScreen(
                                 .menuAnchor(),
                             readOnly = true,
                             shape = RoundedCornerShape(12.dp),
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(showPlacaFilter) },
+                            trailingIcon = { 
+                                ExposedDropdownMenuDefaults.TrailingIcon(showPlacaFilter)
+                            },
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF1976D2),
                                 unfocusedBorderColor = Color(0xFF1976D2)
+                            ),
+                            textStyle = androidx.compose.ui.text.TextStyle(
+                                textAlign = TextAlign.Center
                             )
                         )
                         ExposedDropdownMenu(
@@ -1082,12 +1097,12 @@ fun HomeScreen(
                             onDismissRequest = { showPlacaFilter = false }
                         ) {
                             DropdownMenuItem(
-                                text = { Text("Todas Placas") },
+                                text = { Text("Todas Placas", textAlign = TextAlign.Center) },
                                 onClick = { filtroPlaca = null; showPlacaFilter = false }
                             )
                             placas.forEach { placa ->
                                 DropdownMenuItem(
-                                    text = { Text(placa) },
+                                    text = { Text(placa, textAlign = TextAlign.Center) },
                                     onClick = { filtroPlaca = placa; showPlacaFilter = false }
                                 )
                             }
@@ -1196,9 +1211,9 @@ fun HomeScreen(
     }
 }
 
-//  COMPONENTE: Card Moderno
+//  COMPONENTE: Card Moderno Compacto (ESPAÇOS REDUZIDOS)
 @Composable
-fun ModernCard(
+fun ModernCardCompact(
     title: String,
     subtitle: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
@@ -1208,7 +1223,7 @@ fun ModernCard(
 ) {
     Card(
         modifier = modifier
-            .height(120.dp)
+            .height(110.dp)
             .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = color)
@@ -1216,7 +1231,7 @@ fun ModernCard(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
@@ -1224,21 +1239,22 @@ fun ModernCard(
                 imageVector = icon,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(36.dp)
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = title,
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
             Text(
                 text = subtitle,
-                fontSize = 11.sp,
-                color = Color.White.copy(alpha = 0.85f),
-                textAlign = TextAlign.Center
+                fontSize = 10.sp,
+                color = Color.White.copy(alpha = 0.9f),
+                textAlign = TextAlign.Center,
+                maxLines = 1
             )
         }
     }
