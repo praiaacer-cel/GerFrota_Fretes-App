@@ -1433,6 +1433,325 @@ fun FreteItemPlaca(f: FreteEntity, nf: NumberFormat) {
 }
 '''
 
+# 18.2. TodosFretesScreen.kt (NOVO)
+A["app/src/main/java/com/gerfrota/fretes/ui/TodosFretesScreen.kt"] = r'''package com.gerfrota.fretes.ui
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.gerfrota.fretes.data.FreteEntity
+import com.gerfrota.fretes.data.Repository
+import java.text.NumberFormat
+import java.text.SimpleDateFormat
+import java.util.*
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TodosFretesScreen(
+    repo: Repository,
+    onEditClick: (FreteEntity) -> Unit,
+    onBack: () -> Unit
+) {
+    val fretes by repo.fretes.collectAsState(initial = emptyList())
+    val nf = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+    
+    // ✅ Ordenar por data decrescente (mais recentes primeiro)
+    val fretesOrdenados = remember(fretes) {
+        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
+        fretes.sortedWith(compareByDescending<FreteEntity> { 
+            runCatching { sdf.parse(it.data) }.getOrNull() 
+        })
+    }
+    
+    val totalFretes = fretesOrdenados.size
+    val totalRecebidos = fretesOrdenados.count { it.recebido }
+    val totalPendentes = totalFretes - totalRecebidos
+    val valorTotal = fretesOrdenados.sumOf { it.valorFrete }
+    val saldoTotal = fretesOrdenados.sumOf { it.saldoFrete }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            text = "Todos os Fretes",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = Color(0xFF0D47A1)
+                        )
+                        Text(
+                            text = "$totalFretes registros",
+                            fontSize = 11.sp,
+                            color = Color.Gray
+                        )
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, "Voltar", tint = Color(0xFF0D47A1))
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        }
+    ) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .padding(padding)
+                .fillMaxSize()
+                .background(Color(0xFFF5F7FA)),
+            contentPadding = PaddingValues(16.dp)
+        ) {
+            // ✅ RESUMO NO TOPO
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ResumoCard(
+                        label = "Recebidos",
+                        valor = "$totalRecebidos",
+                        cor = Color(0xFF4CAF50),
+                        modifier = Modifier.weight(1f)
+                    )
+                    ResumoCard(
+                        label = "Pendentes",
+                        valor = "$totalPendentes",
+                        cor = Color(0xFFE53935),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ResumoCard(
+                        label = "Valor Total",
+                        valor = nf.format(valorTotal),
+                        cor = Color(0xFF1976D2),
+                        modifier = Modifier.weight(1f)
+                    )
+                    ResumoCard(
+                        label = "Saldo Total",
+                        valor = nf.format(saldoTotal),
+                        cor = Color(0xFF0D47A1),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+
+            // ✅ SEPARADOR
+            item {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "Lista de Fretes",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0D47A1),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
+            // ✅ LISTA DE FRETES
+            if (fretesOrdenados.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.Inbox,
+                                contentDescription = null,
+                                tint = Color.Gray,
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = "Nenhum frete cadastrado",
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            } else {
+                items(fretesOrdenados) { f ->
+                    FreteItemLista(f, nf, onEdit = { onEditClick(f) })
+                }
+            }
+
+            item {
+                Spacer(Modifier.height(80.dp))
+            }
+        }
+    }
+}
+
+//  COMPONENTE: Card de Resumo
+@Composable
+fun ResumoCard(
+    label: String,
+    valor: String,
+    cor: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = cor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                color = Color.White.copy(alpha = 0.9f),
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = valor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+//  COMPONENTE: Item de Frete na Lista
+@Composable
+fun FreteItemLista(
+    f: FreteEntity,
+    nf: NumberFormat,
+    onEdit: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onEdit),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Indicador lateral de status
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(50.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (f.recebido) Color(0xFF4CAF50) else Color(0xFFE53935))
+            )
+            Spacer(Modifier.width(12.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = f.transportadora.ifBlank { "Sem transportadora" },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = Color(0xFF0D47A1)
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = "${f.origem} → ${f.destino}",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+                Spacer(Modifier.height(4.dp))
+                Row {
+                    Text(
+                        text = f.data,
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "•",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = f.placa,
+                        fontSize = 11.sp,
+                        color = Color.Gray,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            
+            Spacer(Modifier.width(8.dp))
+            
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = nf.format(f.saldoFrete),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = if (f.recebido) Color(0xFF4CAF50) else Color(0xFFE53935)
+                )
+                Spacer(Modifier.height(4.dp))
+                if (f.recebido) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = Color(0xFF4CAF50),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "Recebido",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF4CAF50)
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Pendente",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFE53935)
+                    )
+                }
+            }
+        }
+    }
+}
+'''
+
 # 18.5. GerenciarPlacasScreen.kt (NOVO)
 A["app/src/main/java/com/gerfrota/fretes/ui/GerenciarPlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import android.widget.Toast
@@ -2206,7 +2525,7 @@ class MainActivity : ComponentActivity() {
                             onAddClick = { nav.navigate("form") },
                             onEditClick = { f -> freteEditTarget.value = f.id; nav.navigate("form?edit=1") },
                             onPlacasClick = { nav.navigate("placas") },
-                            onFretesClick = { nav.navigate("fretes") },
+                            onFretesClick = { nav.navigate("todos_fretes") },
                             onRelatoriosClick = { nav.navigate("relatorios") },
                             onBackupClick = { nav.navigate("backup") },
                             onGerenciarPlacasClick = { nav.navigate("gerenciar_placas") },
@@ -2219,7 +2538,16 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("placas") { PlacasScreen(repo) { nav.popBackStack() } }
                     composable("gerenciar_placas") { GerenciarPlacasScreen(repo) { nav.popBackStack() } }
-                    composable("fretes") { nav.popBackStack() }
+                    
+                    // ✅ CORREÇÃO: Rota "todos_fretes" agora carrega a tela real
+                    composable("todos_fretes") {
+                        TodosFretesScreen(
+                            repo = repo,
+                            onEditClick = { f -> freteEditTarget.value = f.id; nav.navigate("form?edit=1") },
+                            onBack = { nav.popBackStack() }
+                        )
+                    }
+                    
                     composable("relatorios") { RelatoriosScreen(repo) { nav.popBackStack() } }
                     composable("backup") { BackupScreen(repo) { nav.popBackStack() } }
                     composable("saldo") { SaldoReceberScreen(repo) { nav.popBackStack() } }
