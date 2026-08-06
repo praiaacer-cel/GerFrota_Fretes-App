@@ -1342,7 +1342,7 @@ fun FreteItemModern(
     }
 }
 '''
-
+ 
 # 18. PlacasScreen.kt
 A["app/src/main/java/com/gerfrota/fretes/ui/PlacasScreen.kt"] = r'''package com.gerfrota.fretes.ui
 import androidx.compose.foundation.clickable
