@@ -1433,9 +1433,10 @@ fun FreteItemPlaca(f: FreteEntity, nf: NumberFormat) {
 }
 '''
 
-# 18.2. TodosFretesScreen.kt (NOVO)
+# 18.2. TodosFretesScreen.kt (CORRIGIDO)
 A["app/src/main/java/com/gerfrota/fretes/ui/TodosFretesScreen.kt"] = r'''package com.gerfrota.fretes.ui
 
+import androidx.compose.foundation.background // ✅ CORREÇÃO: Import explícito do background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1514,7 +1515,7 @@ fun TodosFretesScreen(
             modifier = Modifier
                 .padding(padding)
                 .fillMaxSize()
-                .background(Color(0xFFF5F7FA)),
+                .background(Color(0xFFF5F7FA)), // ✅ Agora o compilador reconhece o .background()
             contentPadding = PaddingValues(16.dp)
         ) {
             // ✅ RESUMO NO TOPO
@@ -1672,7 +1673,7 @@ fun FreteItemLista(
                     .width(4.dp)
                     .height(50.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .background(if (f.recebido) Color(0xFF4CAF50) else Color(0xFFE53935))
+                    .background(if (f.recebido) Color(0xFF4CAF50) else Color(0xFFE53935)) // ✅ Funciona com o import correto
             )
             Spacer(Modifier.width(12.dp))
             
